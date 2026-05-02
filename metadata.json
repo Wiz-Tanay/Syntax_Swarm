@@ -1,0 +1,6 @@
+{
+  "name": "Syntax Swarm",
+  "description": "A particle-based puzzle game where you navigate a swarm of developer syntax to close the bracket.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
