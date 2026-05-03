@@ -1,48 +1,47 @@
-# <SYSTEM_FAILURE /> - The Glitch Purge
+# Syntax Swarm
 
-An intense, technical-glitch themed arcade game built for high-stakes performance testing. Navigate through system instability, purge corrupted data packets, and reach the final compilation before the system critical timeout.
+Syntax Swarm is a high-octane, glitch-themed arcade game where you play as a system architect fighting against a relentless wave of corrupted syntax. Set in a world of terminal-inspired visuals and procedural audio, it challenges your reflexes and system management skills.
 
-## 🕹️ The Game
-You are the system administrator facing a cascading kernel failure. Your mission is to stabilize the environment by purging anomalies across multiple levels of increasing complexity.
+## 💾 The Story
+A catastrophic kernel overflow has triggered a "Syntax Swarm." Corrupted data blocks are flooding the cache, threatening to destabilize the entire OS. Your mission is to purge these anomalies, stabilize the syntax, and reach the final compilation before the system hits a critical breakdown.
 
-### Features
-- **Technical Aesthetic**: A high-contrast, "brutalist" cyberpunk UI with glitch effects, CRT scanlines, and animated data streams.
-- **Dynamic Audio System**: Procedural electronic music and sound effects that react to game states (Success, Danger, and Title themes).
-- **Hardened UI**: A "System Danger" and "Compilation Success" screen system with detailed performance metrics.
-- **Responsive Controls**: Fully optimized for both desktop keyboard/mouse and mobile touch interactions.
-- **Environment Configuration**: fine-tune the system parameters from the in-game settings menu.
+## 🎮 How to Play
+- **Objective**: Purge a specific number of corrupted nodes in each level to advance.
+- **Controls**:
+  - **Click/Tap**: Purge a targeted anomaly. 
+  - **Mute Toggle**: Control the "System Audio" if the glitch noise becomes too intense.
+  - **Settings**: Adjust system parameters mid-game (accessible from the main game screen).
+- **Levels**: The swarm gets faster and more erratic with every level. Complete 10 levels to reach "Compilation Success."
+- **Game Over**: If the timer runs out before the purge quota is met, the system crashes and enters a `SYSTEM_DANGER` state.
 
-## 🚀 Getting Started
+## 🛠️ Built With
+- **Framework**: [React 18](https://reactjs.org/) + [Vite](https://vitejs.dev/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) for that sharp, harsh terminal aesthetic.
+- **Animations**: [Framer Motion](https://www.framer.com/motion/) (`motion/react`) for glitch filters, CRT flickering, and layout transitions.
+- **Audio Engine**: Procedural synthesis using the **Web Audio API** — the soundtrack is synthesized in real-time.
+- **Icons**: [Lucide React](https://lucide.dev/).
 
-### Prerequisites
-- [Node.js](https://nodejs.org/) (Version 18 or higher)
-- npm or yarn
+## 🚀 Running the Project Locally
+To run **Syntax Swarm** on your own machine:
 
-### Installation
-1. Clone the repository:
+1. **Clone the Repo**:
    ```bash
    git clone <your-repo-url>
    ```
-2. Install dependencies:
+2. **Install Dependencies**:
    ```bash
    npm install
    ```
-3. Start the development server:
+3. **Start the Engine**:
    ```bash
    npm run dev
    ```
-
-## 🛠️ Tech Stack
-- **Framework**: [React 18](https://reactjs.org/) with [Vite](https://vitejs.dev/)
-- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
-- **Animations**: [Framer Motion](https://www.framer.com/motion/) (`motion/react`)
-- **Icons**: [Lucide React](https://lucide.dev/)
-- **Audio**: Web Audio API (Procedural Synthesis)
-
-## 🎨 Design Philosophy
-The project follows a **"Code-as-UI"** philosophy. Every element is designed to feel like a living terminal or a debugger interface, using mono fonts (Inter, Space Grotesk) and sharp, geometric layouts.
+4. **Access**: Open your browser to the local port (usually `http://localhost:3000`).
 
 ---
 
-**STATUS**: COMPILATION SUCCESSFUL 🟢
-**THREAT LEVEL**: NOMINAL
+### All rights to project reserved to ~Tanay Pandey
+**Built using AIStudio.Google**
+
+---
+*STATUS: COMPILATION SUCCESSFUL. RUNTIME STABLE.*
