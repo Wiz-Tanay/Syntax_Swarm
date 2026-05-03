@@ -1,5 +1,5 @@
 /**
- * Procedural Audio Engine for OPEN SCOPE
+ * Procedural Audio Engine for OPEN SCOPE - BACKUP
  * Generates technical, synthesized sound effects using Web Audio API
  */
 
@@ -12,7 +12,6 @@ class SoundEngine {
   private musicNodes: { osc: OscillatorNode; gain: GainNode }[] = [];
   private musicInterval: any = null;
   private currentPitchFactor: number = 1.0;
-  private currentTempoFactor: number = 1.0;
 
   private init() {
     if (!this.ctx) {
@@ -45,21 +44,13 @@ class SoundEngine {
   }
 
   stopMusic() {
-    if (this.musicInterval) {
-      clearTimeout(this.musicInterval);
-      this.musicInterval = null;
-    }
+    if (this.musicInterval) clearInterval(this.musicInterval);
     this.musicNodes = [];
-    this.currentPitchFactor = 1.0;
-    this.currentTempoFactor = 1.0;
+    this.musicInterval = null;
   }
 
   setMusicPitch(factor: number) {
     this.currentPitchFactor = factor;
-  }
-
-  setMusicTempo(factor: number) {
-    this.currentTempoFactor = factor;
   }
 
   startTitleMusic() {
@@ -84,7 +75,7 @@ class SoundEngine {
     ];
     
     const tick = () => {
-      if (!this.ctx || this.musicInterval === null) return;
+      if (!this.ctx || this.musicInterval !== intervalRef) return;
       const now = this.ctx.currentTime;
       const s = step % 16;
       
@@ -121,11 +112,10 @@ class SoundEngine {
       }
 
       step++;
-      const nextInterval = 220 / this.currentTempoFactor;
-      this.musicInterval = setTimeout(tick, nextInterval);
     };
 
-    this.musicInterval = setTimeout(tick, 220);
+    const intervalRef = setInterval(tick, 220); // Faster Tempo (~136bpm base)
+    this.musicInterval = intervalRef;
   }
 
   startGameMusic() {
@@ -133,6 +123,7 @@ class SoundEngine {
     this.init();
     if (!this.ctx) return;
     
+    // Ensure context is running (fixes some "lag" or silence issues)
     if (this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
@@ -140,6 +131,7 @@ class SoundEngine {
     let step = 0;
     
     // Catchy Tech-Synth Hook (16-step sequence)
+    // Scale: A Minor Pentatonic / Blues with some glitch accents
     const leadSeq = [
       440.00, 0, 523.25, 440.00, 
       0, 587.33, 0, 659.25,
@@ -147,6 +139,7 @@ class SoundEngine {
       587.33, 523.25, 392.00, 440.00
     ]; 
     
+    // Rolling Bassline
     const bassSeq = [
       55.00, 55.00, 55.00, 55.00,
       65.41, 65.41, 65.41, 65.41,
@@ -155,7 +148,7 @@ class SoundEngine {
     ];
     
     const tick = () => {
-      if (!this.ctx || this.musicInterval === null) return;
+      if (!this.ctx || this.musicInterval !== intervalRef) return;
       
       const now = this.ctx.currentTime;
       const s = step % 16;
@@ -200,6 +193,7 @@ class SoundEngine {
       }
 
       // 3. Driving Percussion
+      // Kick on 1, 5, 9, 13
       if (s % 4 === 0) {
         const { osc: kOsc, gain: kGain } = this.createOscillator(160, 'sine');
         kOsc.frequency.exponentialRampToValueAtTime(45, now + 0.08);
@@ -209,6 +203,7 @@ class SoundEngine {
         kOsc.stop(now + 0.15);
       }
 
+      // Snare on 5, 13
       if (s === 4 || s === 12) {
         const { osc: sOsc, gain: sGain } = this.createOscillator(1000, 'square');
         sGain.gain.setValueAtTime(0.08, now);
@@ -217,6 +212,7 @@ class SoundEngine {
         sOsc.stop(now + 0.08);
       }
 
+      // Consistent Hi-hats
       if (s % 2 === 1) {
         const { osc: hOsc, gain: hGain } = this.createOscillator(8000, 'sine');
         hGain.gain.setValueAtTime(0, now);
@@ -227,11 +223,11 @@ class SoundEngine {
       }
 
       step++;
-      const nextInterval = 115 / this.currentTempoFactor;
-      this.musicInterval = setTimeout(tick, nextInterval);
     };
     
-    this.musicInterval = setTimeout(tick, 115);
+    // Driving Tempo (faster, tighter)
+    const intervalRef = setInterval(tick, 115); 
+    this.musicInterval = intervalRef;
   }
 
   // --- Swarm Ambience ---
@@ -286,62 +282,68 @@ class SoundEngine {
 
   // --- Sound Presets ---
 
-  /** Bug deletion: Technical electric zap */
+  /** Bug deletion: More technical "crush" sound */
   playPing(count: number) {
     this.init();
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
     
-    // 1. Digital Zap
-    const { osc: o1, gain: g1 } = this.createOscillator(1800 + Math.random() * 400, 'square');
+    // 1. Digital Zap (Higher impact)
+    const { osc: o1, gain: g1 } = this.createOscillator(2200 + Math.random() * 400, 'square');
     g1.gain.setValueAtTime(0, now);
-    g1.gain.linearRampToValueAtTime(0.2, now + 0.002);
-    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+    g1.gain.linearRampToValueAtTime(0.25, now + 0.002);
+    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
     
-    // 2. Resonant Filter Sweep
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(2000, now);
-    filter.frequency.exponentialRampToValueAtTime(500, now + 0.1);
-    filter.Q.value = 10;
-    
-    o1.disconnect();
-    o1.connect(filter);
-    filter.connect(g1);
+    // 2. Low "Squash" slide
+    const { osc: o2, gain: g2 } = this.createOscillator(300, 'sawtooth');
+    o2.frequency.exponentialRampToValueAtTime(50, now + 0.15);
+    g2.gain.setValueAtTime(0, now);
+    g2.gain.linearRampToValueAtTime(0.2, now + 0.01);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
 
     o1.start(now);
-    o1.stop(now + 0.15);
+    o1.stop(now + 0.1);
+    o2.start(now);
+    o2.stop(now + 0.2);
   }
 
-  /** Number Step: Catchy technical thud */
+  /** Number Step: Deep technical "thud" for iteration change */
   playStep() {
     this.init();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
+    const now = this.ctx!.currentTime;
     
-    // 1. Deep Sub Thump
-    const { osc: o1, gain: g1 } = this.createOscillator(90, 'sine');
-    o1.frequency.exponentialRampToValueAtTime(30, now + 0.3);
-    g1.gain.setValueAtTime(0.6, now);
-    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    // Impact
+    const { osc: o1, gain: g1 } = this.createOscillator(120, 'sine');
+    o1.frequency.exponentialRampToValueAtTime(40, now + 0.2);
+    g1.gain.setValueAtTime(0.8, now);
+    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
     
-    // 2. Harmonic Resonance (Appealing digital bloom)
-    const { osc: o2, gain: g2 } = this.createOscillator(440, 'triangle'); 
-    g2.gain.setValueAtTime(0, now);
-    g2.gain.linearRampToValueAtTime(0.12, now + 0.05);
-    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-    
-    // 3. Technical Clicks
-    const { osc: o3, gain: g3 } = this.createOscillator(3500, 'square');
-    g3.gain.setValueAtTime(0.1, now);
-    g3.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    // Tech click
+    const { osc: o2, gain: g2 } = this.createOscillator(2200, 'square');
+    g2.gain.setValueAtTime(0.3, now);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+    // Filtered noise pop
+    const bufferSize = this.ctx!.sampleRate * 0.1;
+    const buffer = this.ctx!.createBuffer(1, bufferSize, this.ctx!.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = this.ctx!.createBufferSource();
+    noise.buffer = buffer;
+    const nGain = this.ctx!.createGain();
+    nGain.gain.setValueAtTime(0.15, now);
+    nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    noise.connect(nGain);
+    nGain.connect(this.masterVolume!);
+    noise.start(now);
+    noise.stop(now + 0.05);
 
     o1.start(now);
-    o1.stop(now + 0.45);
+    o1.stop(now + 0.4);
     o2.start(now);
-    o2.stop(now + 0.7);
-    o3.start(now);
-    o3.stop(now + 0.05);
+    o2.stop(now + 0.08);
+    noise.start(now);
+    noise.stop(now + 0.05);
   }
 
   /** Victory: A triumphant ascending digital arpeggio */
@@ -352,7 +354,7 @@ class SoundEngine {
     const notes = [523.25, 659.25, 783.99, 1046.50, 1318.51, 1567.98]; // C5 Major arpeggio
     
     notes.forEach((freq, i) => {
-      const { osc, gain } = this.createOscillator(freq, this.currentPitchFactor > 1 ? 'square' : 'sine');
+      const { osc, gain } = this.createOscillator(freq, 'sine');
       gain.gain.setValueAtTime(0, now + i * 0.08);
       gain.gain.linearRampToValueAtTime(0.12, now + i * 0.08 + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.5);
@@ -369,272 +371,20 @@ class SoundEngine {
     low.stop(now + 2);
   }
 
-  /** Wave Clear: A rewarding digital sparkle */
-  playAllPurged() {
-    this.init();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-    const freqs = [1046.50, 1318.51, 1567.98, 2093.00]; // Higher C Major
-    
-    freqs.forEach((f, i) => {
-      const { osc, gain } = this.createOscillator(f, 'sine');
-      gain.gain.setValueAtTime(0, now + i * 0.04);
-      gain.gain.linearRampToValueAtTime(0.08, now + i * 0.04 + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.3);
-      osc.start(now + i * 0.04);
-      osc.stop(now + 0.5);
-    });
-  }
-
-  /** Victory/Compiled Screen Music: Catchy electronic celebratory track */
-  startSuccessMusic() {
-    this.stopMusic();
-    this.init();
-    if (!this.ctx) return;
-    
-    let step = 0;
-    const bpm = 120;
-    const stepDuration = 60 / bpm / 4; // 16th notes
-    let nextNoteTime = this.ctx.currentTime;
-    
-    // Energetic, syncopated lead melody
-    const lead = [
-      440.00, 0, 523.25, 587.33,
-      659.25, 0, 783.99, 0,
-      880.00, 783.99, 880.00, 0,
-      1046.50, 880.00, 1174.66, 0
-    ];
-    
-    const bass = [
-      110.00, 110.00, 130.81, 130.81,
-      146.83, 146.83, 164.81, 164.81,
-      110.00, 110.00, 130.81, 130.81,
-      164.81, 174.61, 196.00, 220.00
-    ];
-
-    const scheduleNote = (s: number, time: number) => {
-      if (!this.ctx) return;
-      const beat = s % 16;
-      
-      // 1. Bass
-      const bFreq = bass[beat];
-      const { osc: bOsc, gain: bGain } = this.createOscillator(bFreq, 'sawtooth');
-      const bFilter = this.ctx.createBiquadFilter();
-      bFilter.type = 'lowpass';
-      bFilter.frequency.setValueAtTime(800, time);
-      bFilter.frequency.exponentialRampToValueAtTime(200, time + 0.1);
-      
-      bOsc.disconnect();
-      bOsc.connect(bFilter);
-      bFilter.connect(bGain);
-      
-      bGain.gain.setValueAtTime(0, time);
-      bGain.gain.linearRampToValueAtTime(0.1, time + 0.01);
-      bGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
-      bOsc.start(time);
-      bOsc.stop(time + 0.25);
-
-      // 2. Lead
-      const lFreq = lead[beat];
-      if (lFreq > 0) {
-        const { osc, gain } = this.createOscillator(lFreq, 'square');
-        const lFilter = this.ctx.createBiquadFilter();
-        lFilter.type = 'highpass';
-        lFilter.frequency.value = 500;
-        
-        osc.disconnect();
-        osc.connect(lFilter);
-        lFilter.connect(gain);
-        
-        gain.gain.setValueAtTime(0, time);
-        gain.gain.linearRampToValueAtTime(0.05, time + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, time + (beat % 4 === 0 ? 0.4 : 0.15));
-        osc.start(time);
-        osc.stop(time + 0.5);
-      }
-
-      // 3. Percussion
-      if (beat % 4 === 0) { // Kick
-        const { osc: kOsc, gain: kGain} = this.createOscillator(150, 'sine');
-        kOsc.frequency.exponentialRampToValueAtTime(50, time + 0.1);
-        kGain.gain.setValueAtTime(0.3, time);
-        kGain.gain.exponentialRampToValueAtTime(0.001, time + 0.12);
-        kOsc.start(time);
-        kOsc.stop(time + 0.15);
-      }
-      
-      if (beat === 4 || beat === 12) { // Clap
-        const { osc: cOsc, gain: cGain } = this.createOscillator(2000, 'square');
-        cGain.gain.setValueAtTime(0.08, time);
-        cGain.gain.exponentialRampToValueAtTime(0.001, time + 0.07);
-        cOsc.start(time);
-        cOsc.stop(time + 0.08);
-      }
-    };
-
-    const scheduler = () => {
-      if (!this.ctx || this.musicInterval === null) return;
-      
-      while (nextNoteTime < this.ctx.currentTime + 0.15) {
-        if (step >= 64) {
-          this.stopMusic();
-          return;
-        }
-        scheduleNote(step, nextNoteTime);
-        nextNoteTime += stepDuration;
-        step++;
-      }
-      this.musicInterval = setTimeout(scheduler, 25);
-    };
-
-    this.musicInterval = setTimeout(scheduler, 0);
-  }
-
-  startFailureMusic() {
-    this.stopMusic();
-    this.init();
-    if (!this.ctx) return;
-    
-    let step = 0;
-    const bpm = 130;
-    const stepDuration = 60 / bpm / 4;
-    let nextNoteTime = this.ctx.currentTime;
-    
-    const scheduleNote = (s: number, time: number) => {
-      if (!this.ctx) return;
-      const beat = s % 8;
-      
-      // 1. Aggressive Pulsing Bass
-      const bFreq = (beat % 4 === 0) ? 60 : 45;
-      const { osc: bOsc, gain: bGain } = this.createOscillator(bFreq, 'sawtooth');
-      
-      const dist = this.ctx.createBiquadFilter();
-      dist.type = 'lowpass';
-      dist.frequency.value = 400;
-      dist.Q.value = 15;
-
-      bOsc.disconnect();
-      bOsc.connect(dist);
-      dist.connect(bGain);
-
-      bGain.gain.setValueAtTime(0.2, time);
-      bGain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
-      bOsc.start(time);
-      bOsc.stop(time + 0.25);
-
-      // 2. High-Pitched emergency Glitch
-      if (beat % 2 === 0) {
-        const { osc, gain } = this.createOscillator(beat % 4 === 0 ? 1200 : 900, 'square');
-        gain.gain.setValueAtTime(0, time);
-        gain.gain.linearRampToValueAtTime(0.08, time + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
-        osc.start(time);
-        osc.stop(time + 0.12);
-      }
-
-      // 3. Falling Siren
-      if (s % 16 === 0) {
-        const { osc: sOsc, gain: sGain } = this.createOscillator(800, 'sawtooth');
-        sOsc.frequency.exponentialRampToValueAtTime(400, time + 0.8);
-        sGain.gain.setValueAtTime(0, time);
-        sGain.gain.linearRampToValueAtTime(0.12, time + 0.1);
-        sGain.gain.exponentialRampToValueAtTime(0.001, time + 0.8);
-        sOsc.start(time);
-        sOsc.stop(time + 0.82);
-      }
-    };
-
-    const scheduler = () => {
-      if (!this.ctx || this.musicInterval === null) return;
-      
-      while (nextNoteTime < this.ctx.currentTime + 0.15) {
-        if (step >= 48) {
-          this.stopMusic();
-          return;
-        }
-        scheduleNote(step, nextNoteTime);
-        nextNoteTime += stepDuration;
-        step++;
-      }
-      this.musicInterval = setTimeout(scheduler, 25);
-    };
-
-    this.musicInterval = setTimeout(scheduler, 0);
-  }
-
-
-  /** Penalty hit: A biting technical glitch "Laser" */
+  /** Penalty hit: A punchy technical glitch */
   playError() {
     this.init();
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
     
-    // 1. High frequency distorted strike
-    const { osc: o1, gain: g1 } = this.createOscillator(3500, 'square');
-    o1.frequency.exponentialRampToValueAtTime(800, now + 0.1);
-    g1.gain.setValueAtTime(0, now);
-    g1.gain.linearRampToValueAtTime(0.15, now + 0.005);
-    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    const { osc, gain } = this.createOscillator(160, 'square');
+    osc.frequency.linearRampToValueAtTime(40, now + 0.2);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.3, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
     
-    // 2. Low-mid harmonic burst
-    const { osc: o2, gain: g2 } = this.createOscillator(180, 'sawtooth');
-    g2.gain.setValueAtTime(0, now);
-    g2.gain.linearRampToValueAtTime(0.2, now + 0.01);
-    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-
-    o1.start(now);
-    o1.stop(now + 0.2);
-    o2.start(now);
-    o2.stop(now + 0.3);
-  }
-
-  /** Kernel Panic/System Crash: Heavy digital distortion Transition */
-  playPanic() {
-    this.init();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
-
-    // 1. Digital "Screech" Slide
-    const { osc: o1, gain: g1 } = this.createOscillator(880, 'sawtooth');
-    o1.frequency.exponentialRampToValueAtTime(20, now + 0.8);
-    g1.gain.setValueAtTime(0, now);
-    g1.gain.linearRampToValueAtTime(0.2, now + 0.1);
-    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.82);
-
-    // 2. Heavy Sub "Drop"
-    const { osc: o2, gain: g2 } = this.createOscillator(40, 'sine');
-    g2.gain.setValueAtTime(0, now + 0.2);
-    g2.gain.linearRampToValueAtTime(0.4, now + 0.25);
-    g2.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
-
-    // 3. Modulated LFO noise "Static"
-    const lfo = this.ctx.createOscillator();
-    lfo.frequency.value = 15;
-    const lfoGain = this.ctx.createGain();
-    lfoGain.gain.value = 400;
-    
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 600;
-
-    const noise = this.ctx.createOscillator();
-    noise.type = 'square';
-    noise.frequency.value = 2200;
-    
-    lfo.connect(lfoGain);
-    lfoGain.connect(noise.frequency);
-    noise.connect(filter);
-    filter.connect(g1); // Connect to same gain as slide
-
-    lfo.start(now);
-    noise.start(now);
-    lfo.stop(now + 0.8);
-    noise.stop(now + 0.8);
-
-    o1.start(now);
-    o1.stop(now + 0.9);
-    o2.start(now + 0.2);
-    o2.stop(now + 1.3);
+    osc.start(now);
+    osc.stop(now + 0.3);
   }
 
   /** Success/Brackets Closed: Resonant digital chime sweep */
@@ -700,43 +450,19 @@ class SoundEngine {
     noise.stop(now + 0.8);
   }
 
-  /** Startup/Transition: Clean digital loading pulse */
+  /** Startup/Transition: Rising digital scan */
   playStartup() {
-    this.init();
-    if (!this.ctx) return;
-    const now = this.ctx.currentTime;
+    const { osc, gain } = this.createOscillator(80, 'sawtooth');
+    const now = this.ctx!.currentTime;
     
-    // 1. Evolving Resonance Sweep
-    const { osc, gain } = this.createOscillator(55, 'sawtooth');
-    osc.frequency.exponentialRampToValueAtTime(330, now + 1.5);
-    
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(50, now);
-    filter.frequency.exponentialRampToValueAtTime(4000, now + 1.2);
-    filter.Q.value = 8;
-    
-    osc.disconnect();
-    osc.connect(filter);
-    filter.connect(gain);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 1.2);
     
     gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.15, now + 0.2);
-    gain.gain.linearRampToValueAtTime(0, now + 1.5);
+    gain.gain.linearRampToValueAtTime(0.25, now + 0.1);
+    gain.gain.linearRampToValueAtTime(0, now + 1.2);
     
     osc.start(now);
-    osc.stop(now + 1.5);
-
-    // 2. Rhythm Pulse (Loading clicks)
-    for (let i = 0; i < 4; i++) {
-      const { osc: pOsc, gain: pGain } = this.createOscillator(2200 + i * 440, 'sine');
-      const time = now + i * 0.3;
-      pGain.gain.setValueAtTime(0, time);
-      pGain.gain.linearRampToValueAtTime(0.05, time + 0.01);
-      pGain.gain.exponentialRampToValueAtTime(0.001, time + 0.08);
-      pOsc.start(time);
-      pOsc.stop(time + 0.1);
-    }
+    osc.stop(now + 1.2);
   }
 
   /** Timeout/Fail: A descending heavy glitch sound */

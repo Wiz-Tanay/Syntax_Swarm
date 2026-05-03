@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'motion/react';
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { sounds } from './services/soundService';
-import { Settings, Check, Volume2, Cpu, Type, Bug } from 'lucide-react';
+import { Settings, Check, Volume2, VolumeX, Cpu, Type, Bug, RefreshCw, Home, XCircle, AlertTriangle, Activity, Shield, Zap, ChevronRight, Code2, X } from 'lucide-react';
 
 const COLORS = ['#4285F4', '#EA4335', '#FBBC05', '#34A853'];
 const CHARS = ['=>', ';', '//', '()', '[]', 'const', 'let', 'var', 'async', '{...}', '=>', 'import', 'from', 'await', 'fetch'];
@@ -270,6 +270,7 @@ const ScoutingBug: React.FC<ScoutingBugProps> = ({ id }) => {
   }, [id]);
 
   const [coords, setCoords] = useState({ ...startPos, rotate: 0 });
+  const [trail, setTrail] = useState<{x: number, y: number, id: number}[]>([]);
   
   // Generate a unique path for this bug instance that covers the whole screen
   const waypoints = useMemo(() => {
@@ -316,23 +317,30 @@ const ScoutingBug: React.FC<ScoutingBugProps> = ({ id }) => {
       pts.push(...combined);
     }
 
-    return pts;
+    // Add random jitter to make trajectories "weird" and erratic
+    return pts.map(p => ({
+      x: p.x + (Math.random() - 0.5) * 150,
+      y: p.y + (Math.random() - 0.5) * 150
+    }));
   }, [id]);
 
   const pathIndex = useRef(0);
 
   useEffect(() => {
+    const updateTime = 2500 + (id * 300); // Faster crawl
     const interval = setInterval(() => {
-      const current = waypoints[pathIndex.current];
-      pathIndex.current = (pathIndex.current + 1) % waypoints.length;
-      const next = waypoints[pathIndex.current];
-      
-      const dx = next.x - current.x;
-      const dy = next.y - current.y;
-      const angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+      setCoords(prev => {
+        pathIndex.current = (pathIndex.current + 1) % waypoints.length;
+        const next = waypoints[pathIndex.current];
+        const dx = next.x - prev.x;
+        const dy = next.y - prev.y;
+        const angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
 
-      setCoords({ x: next.x, y: next.y, rotate: angle });
-    }, 2500 + (id * 500)); // Distinct timing per bug
+        // Drop a trail point at the target location
+        setTrail(tPrev => [{ x: next.x, y: next.y, id: Math.random() }, ...tPrev.slice(0, 10)]);
+        return { x: next.x, y: next.y, rotate: angle };
+      });
+    }, updateTime);
 
     return () => clearInterval(interval);
   }, [waypoints, id]);
@@ -348,27 +356,336 @@ const ScoutingBug: React.FC<ScoutingBugProps> = ({ id }) => {
         opacity: [0, 1]
       }}
       transition={{ 
-        duration: 3, 
+        duration: 2.5 + (id * 0.3), // Snappier but fluid
         ease: "easeInOut"
       }}
     >
+      {/* Motion Trail Particles - brighter and bigger */}
+      <AnimatePresence>
+        {trail.map((t, i) => (
+          <motion.div
+            key={t.id}
+            initial={{ opacity: 0.8, scale: 1.5 }}
+            animate={{ opacity: 0, scale: 0.1 }}
+            exit={{ opacity: 0 }}
+            className="absolute -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-[#4285F4]/30 blur-2xl"
+            style={{ left: t.x - coords.x, top: t.y - coords.y }}
+            transition={{ duration: 3.5 }}
+          />
+        ))}
+      </AnimatePresence>
+
       <motion.div
+        className="relative"
         animate={{ 
-          scale: [1, 1.05, 1],
-          opacity: [1, 0.8, 1],
+          scale: [1, 1.3, 1],
+          filter: [
+            "drop-shadow(0 0 10px rgba(66, 133, 244, 0.6))",
+            "drop-shadow(0 0 35px rgba(66, 133, 244, 0.9))",
+            "drop-shadow(0 0 10px rgba(66, 133, 244, 0.6))"
+          ],
         }}
-        transition={{ duration: 0.5, repeat: Infinity }}
+        transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut" }}
       >
-        <Bug className="w-8 h-8 text-[#4285F4] drop-shadow-[0_0_15px_#4285F4]" />
+        <Bug className="w-10 h-10 text-[#4285F4] drop-shadow-[0_0_20px_#4285F4] filter brightness-150" />
         
-        {/* Minimal trail */}
+        {/* Pulsing energy core */}
         <motion.div 
-          className="absolute top-1/2 left-1/2 w-4 h-[1px] bg-[#4285F4]/10 -translate-x-1/2"
-          animate={{ scaleX: [0, 1.5, 0], opacity: [0, 0.4, 0] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
+          className="absolute top-1/2 left-1/2 w-8 h-8 bg-[#4285F4]/40 rounded-full -translate-x-1/2 -translate-y-1/2 blur-2xl"
+          animate={{ scale: [1, 4, 1], opacity: [0.3, 0.7, 0.3] }}
+          transition={{ duration: 1.4, repeat: Infinity }}
         />
       </motion.div>
     </motion.div>
+  );
+};
+
+const Counter = ({ value, duration = 1 }: { value: number, duration?: number }) => {
+  const [displayValue, setDisplayValue] = useState(value);
+  const previousValue = useRef(value);
+
+  useEffect(() => {
+    let start = previousValue.current;
+    let end = value;
+    if (start === end) return;
+
+    let startTime: number | null = null;
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime;
+      const progress = Math.min((currentTime - startTime) / (duration * 1000), 1);
+      const current = Math.floor(start + (end - start) * progress);
+      setDisplayValue(current);
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        previousValue.current = value;
+      }
+    };
+    requestAnimationFrame(animate);
+  }, [value, duration]);
+
+  return <span>{displayValue.toLocaleString()}</span>;
+};
+
+interface SuccessParticle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  color: string;
+  char: string;
+  alpha: number;
+  size: number;
+  life: number;
+}
+
+const SuccessEffect: React.FC = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const particles = useRef<SuccessParticle[]>([]);
+  const requestRef = useRef<number>(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Initial burst
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    for (let i = 0; i < 200; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2 + Math.random() * 15;
+      particles.current.push({
+        x: centerX,
+        y: centerY,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        char: CHARS[Math.floor(Math.random() * CHARS.length)],
+        alpha: 1,
+        size: 10 + Math.random() * 20,
+        life: 1 + Math.random()
+      });
+    }
+
+    const animate = () => {
+      ctx.fillStyle = 'rgba(6, 6, 6, 0.2)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      particles.current.forEach((p, index) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= 0.005;
+        p.size *= 0.99;
+        
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.font = `bold ${p.size}px monospace`;
+        ctx.fillText(p.char, p.x, p.y);
+        
+        // Motion trail
+        ctx.beginPath();
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = p.size / 4;
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - p.vx * 2, p.y - p.vy * 2);
+        ctx.stroke();
+        ctx.restore();
+
+        if (p.alpha <= 0) {
+          particles.current.splice(index, 1);
+        }
+      });
+
+      // Continuous smaller bursts
+      if (Math.random() > 0.8) {
+        const x = Math.random() * canvas.width;
+        const y = Math.random() * canvas.height;
+        for (let i = 0; i < 5; i++) {
+           const angle = Math.random() * Math.PI * 2;
+           const speed = 1 + Math.random() * 5;
+           particles.current.push({
+             x, y,
+             vx: Math.cos(angle) * speed,
+             vy: Math.sin(angle) * speed,
+             color: COLORS[Math.floor(Math.random() * COLORS.length)],
+             char: CHARS[Math.floor(Math.random() * CHARS.length)],
+             alpha: 0.8,
+             size: 8 + Math.random() * 12,
+             life: 1
+           });
+        }
+      }
+
+      requestRef.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+    return () => {
+      window.removeEventListener('resize', resize);
+      cancelAnimationFrame(requestRef.current);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />;
+};
+
+const FailureEffect: React.FC = () => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const particles = useRef<SuccessParticle[]>([]);
+  const requestRef = useRef<number>(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    window.addEventListener('resize', resize);
+    resize();
+
+    const FAILURE_COLORS = ['#ff0000', '#ff4d00', '#ff7b00', '#990000'];
+    const FAILURE_CHARS = ['ERR!', 'FAIL', 'NULL', '0x1', '!!!', '{ }', '=>', '(/)'];
+
+    // Initial chaotic burst
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    for (let i = 0; i < 150; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 5 + Math.random() * 20;
+      particles.current.push({
+        x: centerX,
+        y: centerY,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        color: FAILURE_COLORS[Math.floor(Math.random() * FAILURE_COLORS.length)],
+        char: FAILURE_CHARS[Math.floor(Math.random() * FAILURE_CHARS.length)],
+        alpha: 1,
+        size: 15 + Math.random() * 25,
+        life: 1
+      });
+    }
+
+    const animate = () => {
+      // Darker trail for failure
+      ctx.fillStyle = 'rgba(10, 0, 0, 0.3)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      particles.current.forEach((p, index) => {
+        // Add some jitter
+        p.x += p.vx + (Math.random() - 0.5) * 5;
+        p.y += p.vy + (Math.random() - 0.5) * 5;
+        p.alpha -= 0.01;
+        p.size *= 0.98;
+        
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.font = `bold ${p.size}px monospace`;
+        
+        // Glitch effect: occasionally draw offset or different char
+        const drawX = p.x + (Math.random() > 0.95 ? (Math.random() - 0.5) * 40 : 0);
+        const char = Math.random() > 0.98 ? 'ERROR' : p.char;
+        ctx.fillText(char, drawX, p.y);
+        
+        // Jagged motion trail
+        ctx.beginPath();
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = p.size / 6;
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - p.vx * 3, p.y - p.vy * 3);
+        ctx.stroke();
+        ctx.restore();
+
+        if (p.alpha <= 0) {
+          particles.current.splice(index, 1);
+        }
+      });
+
+      // Continuous chaotic spawning
+      if (Math.random() > 0.6) {
+        for (let i = 0; i < 3; i++) {
+           const x = Math.random() * canvas.width;
+           const y = Math.random() * canvas.height;
+           const angle = Math.random() * Math.PI * 2;
+           const speed = 2 + Math.random() * 8;
+           particles.current.push({
+             x, y,
+             vx: Math.cos(angle) * speed,
+             vy: Math.sin(angle) * speed,
+             color: FAILURE_COLORS[Math.floor(Math.random() * FAILURE_COLORS.length)],
+             char: FAILURE_CHARS[Math.floor(Math.random() * FAILURE_CHARS.length)],
+             alpha: 0.9,
+             size: 10 + Math.random() * 15,
+             life: 1
+           });
+        }
+      }
+
+      requestRef.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+    return () => {
+      window.removeEventListener('resize', resize);
+      cancelAnimationFrame(requestRef.current);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none opacity-40" />;
+};
+
+const MiniStat = ({ label, value, color, delay }: any) => (
+  <motion.div 
+    initial={{ opacity: 0, y: 10 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay }}
+    className="bg-white/5 border-l-2 p-3 md:p-6 flex flex-col gap-1 rounded-r-lg"
+    style={{ borderColor: color }}
+  >
+    <div className="text-[8px] md:text-xs text-white/40 uppercase tracking-widest">{label}</div>
+    <div className="text-xl md:text-4xl font-black text-white">{value}</div>
+  </motion.div>
+);
+
+const GlitchText = ({ text, className }: { text: string, className?: string }) => {
+  return (
+    <div className={`relative ${className}`}>
+      <motion.div
+        animate={{ 
+          x: [-2, 2, -1, 1, 0],
+          filter: [
+            'drop-shadow(2px 0 red) drop-shadow(-2px 0 blue)',
+            'drop-shadow(-2px 0 red) drop-shadow(2px 0 blue)',
+            'drop-shadow(0 0 0 transparent)'
+          ]
+        }}
+        transition={{ duration: 0.1, repeat: Infinity, repeatType: "mirror" }}
+        className="relative z-10"
+      >
+        {text}
+      </motion.div>
+      <motion.div
+        animate={{ opacity: [0, 0.5, 0], x: [0, 5, -5, 0] }}
+        transition={{ duration: 0.05, repeat: Infinity }}
+        className="absolute inset-0 text-red-500 z-0 translate-x-1 opacity-50 select-none pointer-events-none"
+      >
+        {text}
+      </motion.div>
+    </div>
   );
 };
 
@@ -376,18 +693,48 @@ export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [level, setLevel] = useState(0);
   const [gameState, setGameState] = useState<'landing' | 'tutorial' | 'startup' | 'idle' | 'drawing' | 'exploding' | 'gameOver' | 'success' | 'timeout'>('landing');
+  const gameStateRef = useRef(gameState);
+
+  const updateGameState = useCallback((newState: typeof gameState) => {
+    gameStateRef.current = newState;
+    setGameState(newState);
+  }, []);
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(() => Number(localStorage.getItem('syntax-swarm-hs')) || 0);
   const [collectedCount, setCollectedCount] = useState(0);
+  const [totalSpawned, setTotalSpawned] = useState(0);
+  const [totalPurged, setTotalPurged] = useState(0);
+  const [startTime, setStartTime] = useState(0);
+  const [finalTime, setFinalTime] = useState(0);
   const [multiplier, setMultiplier] = useState(1);
   const [shake, setShake] = useState(0);
 
   const [penalties, setPenalties] = useState(0);
   const [gameTime, setGameTime] = useState(0);
+  const [protocolStartTime, setProtocolStartTime] = useState(0);
   const [isCompromised, setIsCompromised] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [volume, setVolume] = useState(30);
+  const [volume, setVolume] = useState(50);
+  const [isMuted, setIsMuted] = useState(false);
+  const prevVolume = useRef(50);
   const [bugCount, setBugCount] = useState(1);
+
+  // Sync volume with sound engine
+  useEffect(() => {
+    sounds.setVolume(volume / 100);
+    if (volume > 0 && isMuted) setIsMuted(false);
+    if (volume === 0 && !isMuted) setIsMuted(true);
+  }, [volume, isMuted]);
+
+  const toggleMute = () => {
+    if (isMuted) {
+      setVolume(prevVolume.current || 30);
+    } else {
+      prevVolume.current = volume;
+      setVolume(0);
+    }
+    setIsMuted(!isMuted);
+  };
 
   // Landing screen bug spawning
   useEffect(() => {
@@ -400,13 +747,23 @@ export default function App() {
   }, [gameState]);
 
   const [difficulty, setDifficulty] = useState('normal');
+  const difficultyRef = useRef(difficulty);
   const [numberStyle, setNumberStyle] = useState('industrial');
+  const numberStyleRef = useRef(numberStyle);
   const [errativeness, setErrativeness] = useState(50);
   const errativenessRef = useRef(50);
 
   useEffect(() => {
     errativenessRef.current = errativeness;
   }, [errativeness]);
+
+  useEffect(() => {
+    difficultyRef.current = difficulty;
+  }, [difficulty]);
+
+  useEffect(() => {
+    numberStyleRef.current = numberStyle;
+  }, [numberStyle]);
 
   const [isInitializing, setIsInitializing] = useState(false);
   const [showCrash, setShowCrash] = useState(false);
@@ -415,29 +772,43 @@ export default function App() {
   useEffect(() => {
     if (gameState === 'landing') {
       sounds.startTitleMusic();
-    } else if (gameState === 'gameOver' || gameState === 'timeout') {
-      sounds.stopMusic();
+    } else if (gameState === 'startup') {
+      // Transition from title/gameover to beginning of gameplay
+      sounds.startGameMusic();
     }
+    // Removed 'idle' trigger which caused restart on penalty
   }, [gameState]);
   
   // Start title music immediately if we land on title
   useEffect(() => {
-    if (gameState === 'landing') {
-      sounds.startTitleMusic();
-    }
+    const startMusic = () => {
+      if (gameState === 'landing') {
+        sounds.startTitleMusic();
+      }
+    };
+
+    startMusic();
+    
+    // Fallback for browser autoplay restrictions
+    window.addEventListener('click', startMusic, { once: true });
+    window.addEventListener('touchstart', startMusic, { once: true });
+    
+    return () => {
+      window.removeEventListener('click', startMusic);
+      window.removeEventListener('touchstart', startMusic);
+    };
   }, []);
 
   // Timer-based tremor during last 15s
   useEffect(() => {
-    if (gameState === 'idle' && gameTime > DIFFICULTIES[difficulty].timeLimit - 15000) {
-      const interval = setInterval(() => {
-        setShake(s => s < 1 ? 2 : s); 
-      }, 400);
-      return () => clearInterval(interval);
-    }
+      const isPlaying = gameState === 'idle' || gameState === 'drawing';
+      if (isPlaying && gameTime > DIFFICULTIES[difficulty].timeLimit - 15000) {
+        const interval = setInterval(() => {
+          setShake(s => s < 1 ? 2 : s); 
+        }, 400);
+        return () => clearInterval(interval);
+      }
   }, [gameState, gameTime, difficulty]);
-  
-  const numberStyleRef = useRef(numberStyle);
   
   const particles = useRef<Particle[]>([]);
   const snacks = useRef<CodeSnippet[]>([]);
@@ -466,18 +837,20 @@ export default function App() {
   };
 
   // Use refs to avoid closure staleness in listeners
-  const gameStateRef = useRef(gameState);
   const levelRef = useRef(level);
   const scoreRef = useRef(score);
   const penaltiesRef = useRef(penalties);
 
+  // High-priority sound triggers for state transistions
   useEffect(() => {
-    gameStateRef.current = gameState;
-    levelRef.current = level;
-    scoreRef.current = score;
-    penaltiesRef.current = penalties;
-    numberStyleRef.current = numberStyle;
-  }, [gameState, level, score, penalties, numberStyle]);
+    if (gameState === 'timeout') {
+      sounds.stopMusic();
+      sounds.startFailureMusic();
+    } else if (gameState === 'gameOver') {
+      sounds.stopMusic();
+      sounds.startSuccessMusic();
+    }
+  }, [gameState]);
 
   const triggerShake = (intensity = 10) => {
     setShake(intensity);
@@ -582,6 +955,10 @@ export default function App() {
     
     // Ensure specific count of collectibles (bugs) always generated
     if (particles.current.length > 0) {
+      if (!isTutorial) {
+        setTotalSpawned(prev => prev + 8);
+      }
+
       for (let i = 0; i < 8; i++) {
         const p = particles.current[Math.floor(Math.random() * particles.current.length)];
         if (p) {
@@ -603,10 +980,12 @@ export default function App() {
     if (gameStateRef.current === 'startup') return;
     
     sounds.playStartup();
-    gameStateRef.current = 'startup';
-    setGameState('startup');
+    updateGameState('startup');
     setIsCompromised(false);
     startupTimer.current = 100; 
+    setTotalSpawned(0);
+    setTotalPurged(0);
+    setStartTime(Date.now());
     
     // Explicitly set to 10 for the start of the game
     levelRef.current = 10;
@@ -650,7 +1029,7 @@ export default function App() {
     let raf: number;
     const loop = () => {
       const now = performance.now();
-      const currentDiff = DIFFICULTIES[difficulty];
+      const currentDiff = DIFFICULTIES[difficultyRef.current];
 
       if (timerActive.current) {
         const delta = now - lastTick.current;
@@ -661,21 +1040,24 @@ export default function App() {
         const threshold = limit - 15000;
         
         if (gameTimeRef.current > threshold) {
-          // Last 15 seconds: Increase pitch 
+          // Last 15 seconds: Increase pitch and tempo
           const progress = (gameTimeRef.current - threshold) / 15000;
           const pitchFactor = 1.0 + progress * 0.4; // 1.0 to 1.4
           sounds.setMusicPitch(pitchFactor);
+          // Increase tempo as well
+          const tempoFactor = 1.0 + progress * 0.5; // 1.0 to 1.5
+          sounds.setMusicTempo(tempoFactor);
         } else {
           sounds.setMusicPitch(1.0);
+          sounds.setMusicTempo(1.0);
         }
 
         // Timeout check
         if (gameTimeRef.current >= limit) {
           timerActive.current = false;
           sounds.stopMusic();
-          sounds.playTimeout();
-          gameStateRef.current = 'timeout';
-          setGameState('timeout');
+          sounds.startFailureMusic();
+          updateGameState('timeout');
           setIsCompromised(true);
         }
       }
@@ -745,18 +1127,15 @@ export default function App() {
         ctx.restore();
 
         if (startupTimer.current <= 0) {
-          setGameState('idle');
+          updateGameState('idle');
           setPenalties(0);
           setCollectedCount(0);
-          // Start timer and swarm on level 10 after initial startup animation
+          // Start timer on level 10 after initial startup animation
           if (levelRef.current === 10 && !timerActive.current) {
             timerActive.current = true;
             lastTick.current = performance.now();
-            sounds.startSwarm();
+            setProtocolStartTime(performance.now());
             sounds.playStep();
-          }
-          if (timerActive.current) {
-            sounds.updateSwarm(levelRef.current);
           }
         }
       } else if (gameStateRef.current === 'tutorial') {
@@ -919,7 +1298,7 @@ export default function App() {
     const distT = Math.sqrt(Math.pow(e.clientX - bx, 2) + Math.pow(e.clientY - bTop, 2));
     
     if (distT < 100) {
-      setGameState('drawing');
+      updateGameState('drawing');
       shiftMode.current = false;
       sparkPos.current = null;
       laserPath.current = [{ x: bx, y: bTop }, { x: e.clientX, y: e.clientY }];
@@ -958,6 +1337,7 @@ export default function App() {
       if (d < 28) nearSwarm = true; // Tightened detection
       if (p.isCollectible && d < 35 && !p.collected) {
         p.collected = true;
+        setTotalPurged(prev => prev + 1);
         sounds.playPing(collectedIndices.current.size);
         collectedIndices.current.add(idx);
         setCollectedCount(collectedIndices.current.size);
@@ -970,7 +1350,7 @@ export default function App() {
     });
     
     if (!nearSwarm) {
-      setGameState('idle');
+      updateGameState('idle');
       sounds.playError();
       sparkPos.current = { x, y };
       errorFrameCount.current = 15; // Trigger laser fault effect
@@ -998,7 +1378,7 @@ export default function App() {
   };
 
   const handleMouseUp = () => {
-    if (gameStateRef.current === 'drawing') setGameState('idle');
+    if (gameStateRef.current === 'drawing') updateGameState('idle');
     shiftMode.current = false;
     // Don't reset laser path here, let it retract in loop
   };
@@ -1007,30 +1387,34 @@ export default function App() {
     if (gameStateRef.current === 'success' || gameStateRef.current === 'exploding' || gameStateRef.current === 'startup' || gameStateRef.current === 'gameOver') return;
 
     if (levelRef.current <= 1) {
-      // Final iteration completed - stop timer and swarm
+      // Final iteration completed - stop timer
       timerActive.current = false;
-      sounds.stopSwarm();
     }
 
     // IMMEDIATE sync state update to prevent double-firing from fast mouse moves
-    gameStateRef.current = 'success';
-    setGameState('success');
+    updateGameState('success');
     sounds.playSuccess();
     
     // Score calculation (None for tutorial level 0)
     if (levelRef.current > 0) {
       const perfectBonus = penaltiesRef.current === 0 ? 5000 : 0; 
       const bugBonus = collectedIndices.current.size === 8 ? 2500 : 0; 
+      
+      if (collectedIndices.current.size >= 8) {
+        sounds.playAllPurged();
+      }
+      
       const stabilityBonus = 1000 * levelRef.current;
-      setScore(s => s + stabilityBonus + perfectBonus + bugBonus);
+      const totalBonus = stabilityBonus + perfectBonus + bugBonus;
+      scoreRef.current += totalBonus;
+      setScore(s => s + totalBonus);
     }
 
     // Sequence: Success Message -> Explosion -> Transition
     setTimeout(() => {
       setShake(80); 
       sounds.playExplosion();
-      gameStateRef.current = 'exploding';
-      setGameState('exploding');
+      updateGameState('exploding');
       particles.current.forEach(p => {
         const angle = Math.random() * Math.PI * 2;
         const speed = 100 + Math.random() * 120; // More violent explosion
@@ -1044,10 +1428,11 @@ export default function App() {
           startDebugging();
         } else if (levelRef.current <= 1) {
           // Final iteration completed
+          setFinalTime(Date.now() - startTime);
           sounds.stopMusic();
           sounds.playWin();
-          gameStateRef.current = 'gameOver';
-          setGameState('gameOver');
+          sounds.startSuccessMusic();
+          updateGameState('gameOver');
           if (scoreRef.current > highScore) {
             setHighScore(scoreRef.current);
             localStorage.setItem('syntax-swarm-hs', scoreRef.current.toString());
@@ -1059,8 +1444,7 @@ export default function App() {
           setLevel(nextLevel);
           generateTargets(nextLevel, false);
           sounds.playStep();
-          gameStateRef.current = 'idle';
-          setGameState('idle');
+          updateGameState('idle');
           sounds.updateSwarm(nextLevel);
           setCollectedCount(0);
           collectedIndices.current.clear();
@@ -1079,15 +1463,17 @@ export default function App() {
     setTimeout(() => {
       setShowCrash(true);
       sounds.stopMusic();
-      sounds.playError();
+      sounds.playPanic();
       setShake(25);
       
       setTimeout(() => {
         setIsInitializing(false);
         setShowCrash(false);
         setShake(0);
-        gameStateRef.current = 'tutorial';
-        setGameState('tutorial');
+        setTotalSpawned(0);
+        setTotalPurged(0);
+        setStartTime(Date.now());
+        updateGameState('tutorial');
         generateTargets(0, true);
         sounds.startGameMusic();
       }, 700);
@@ -1096,10 +1482,12 @@ export default function App() {
 
   const resetGame = () => {
     sounds.playClick();
-    sounds.stopSwarm();
+    sounds.setMusicPitch(1.0); // Ensure pitch is reset
     setIsCompromised(false);
-    gameStateRef.current = 'tutorial';
-    setGameState('tutorial');
+    updateGameState('tutorial');
+    setTotalSpawned(0);
+    setTotalPurged(0);
+    setStartTime(Date.now());
     levelRef.current = 0;
     setLevel(0);
     setScore(0);
@@ -1110,14 +1498,17 @@ export default function App() {
     setCollectedCount(0);
     collectedIndices.current.clear();
     laserPath.current = [];
+    timerActive.current = false;
+    gameTimeRef.current = 0;
+    setGameTime(0);
+    sounds.startGameMusic();
   };
 
   const goToTitle = () => {
     sounds.playClick();
-    sounds.stopSwarm();
+    sounds.setMusicPitch(1.0); // Reset pitch
     setIsCompromised(false);
-    setGameState('landing');
-    gameStateRef.current = 'landing';
+    updateGameState('landing');
     levelRef.current = 0;
     setLevel(0);
     setScore(0);
@@ -1161,26 +1552,73 @@ export default function App() {
       )}
 
       {/* Red Warning Vignette & Scanning Lines */}
-      {gameState === 'idle' && gameTime > DIFFICULTIES[difficulty].timeLimit - 15000 && (
-        <div className="absolute inset-0 pointer-events-none z-50">
+      {(gameState === 'idle' || gameState === 'drawing') && gameTime > DIFFICULTIES[difficulty].timeLimit - 15000 && (
+        <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
           <motion.div 
               animate={{ 
-                opacity: [0.1, 0.4, 0.1],
-                backgroundColor: ['rgba(0,0,0,0)', 'rgba(234,67,53,0.1)', 'rgba(0,0,0,0)']
+                opacity: [0.2, 0.6, 0.2],
+                backgroundColor: ['rgba(0,0,0,0)', 'rgba(234,67,53,0.2)', 'rgba(0,0,0,0)']
               }}
-              transition={{ duration: 0.8, repeat: Infinity }}
-              className="absolute inset-0 shadow-[inset_0_0_200px_rgba(234,67,53,0.6)]"
+              transition={{ 
+                duration: Math.max(0.2, 0.8 * (1 - (gameTime - (DIFFICULTIES[difficulty].timeLimit - 15000)) / 15000)), 
+                repeat: Infinity 
+              }}
+              className="absolute inset-0 shadow-[inset_0_0_250px_rgba(234,67,53,0.8)]"
+          />
+          {/* Intense core flash */}
+          <motion.div 
+              animate={{ 
+                opacity: [0, 0.3, 0]
+              }}
+              transition={{ 
+                duration: 0.1, 
+                repeat: Infinity,
+                repeatType: 'reverse'
+              }}
+              className="absolute inset-0 bg-red-600/10 mix-blend-overlay"
           />
           <motion.div 
-            className="absolute top-0 left-0 right-0 h-[2px] bg-[#EA4335]/30 shadow-[0_0_15px_#EA4335]"
+            className="absolute top-0 left-0 right-0 h-[4px] bg-red-600 shadow-[0_0_30px_#EA4335]"
             animate={{ top: ['0%', '100%'] }}
-            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+            transition={{ duration: 1.0, repeat: Infinity, ease: "linear" }}
           />
-          <div className="absolute top-5 right-5 text-[#EA4335] font-black text-[10px] tracking-[0.5em] animate-pulse">
-            [ ALERT: KERNEL_OVERFLOW_IMMINENT ]
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-red-600 font-black text-9xl opacity-5 select-none pointer-events-none">
+            DANGER
+          </div>
+          <div className="absolute top-5 right-5 text-[#EA4335] font-black text-xs tracking-[0.5em] animate-pulse bg-black/40 px-4 py-2 border border-red-600">
+            [ CRITICAL: {Math.ceil((DIFFICULTIES[difficulty].timeLimit - gameTime) / 1000)}s REMAINING ]
           </div>
         </div>
       )}
+
+      {/* Success/Exploding Feedbacks */}
+      <AnimatePresence>
+        {(gameState === 'success' || gameState === 'exploding') && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[150] flex items-center justify-center pointer-events-none overflow-hidden"
+          >
+            {/* Flash Effect Only */}
+            <motion.div 
+               initial={{ scale: 0, opacity: 0 }}
+               animate={{ scale: [1, 2.5], opacity: [1, 0] }}
+               transition={{ duration: 1.2, ease: "easeOut" }}
+               className="absolute w-[600px] h-[600px] border-[30px] border-white/30 rounded-full"
+            />
+            {gameState === 'exploding' && (
+              <motion.div
+                initial={{ scale: 1 }}
+                animate={{ scale: 1.5, opacity: 0 }}
+                className="text-white font-black text-6xl tracking-tighter"
+              >
+                DECOMPILING...
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {gameState === 'tutorial' && (
         <div className="absolute top-10 right-10 z-20 flex flex-col items-end animate-in fade-in slide-in-from-right duration-700">
@@ -1238,7 +1676,7 @@ export default function App() {
             <div className="flex flex-col gap-1">
                 <div className="text-[11px] text-gray-500 tracking-tighter uppercase font-bold flex flex-col gap-1">
                     <div className="flex gap-4">
-                        Score: <span className="text-white">{score.toLocaleString()}</span>
+                        Score: <span className="text-white"><Counter value={score} duration={0.3} /></span>
                         {multiplier > 1 && (
                             <span 
                                 className="font-black animate-bounce transition-all duration-300"
@@ -1257,8 +1695,14 @@ export default function App() {
                         ET: {formatTime(gameTime)} / {formatTime(DIFFICULTIES[difficulty].timeLimit)}
                     </div>
                 </div>
+                <div className="w-48 h-1 bg-white/5 relative overflow-hidden mb-1">
+                    <motion.div 
+                        className={`absolute inset-y-0 left-0 transition-colors duration-300 ${gameTime > DIFFICULTIES[difficulty].timeLimit - 15000 ? 'bg-red-500' : 'bg-[#4285F4]'}`} 
+                        style={{ width: `${Math.min(100, (gameTime / DIFFICULTIES[difficulty].timeLimit) * 100)}%` }} 
+                    />
+                </div>
                 <div className="w-48 h-0.5 bg-white/5 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-[#4285F4] transition-all duration-1000" style={{ width: `${(collectedCount / 8) * 100}%` }} />
+                    <div className="absolute inset-0 bg-[#34A853]/40 transition-all duration-1000" style={{ width: `${(collectedCount / 8) * 100}%` }} />
                 </div>
             </div>
         </div>
@@ -1374,8 +1818,8 @@ export default function App() {
         </button>
       </div>
 
-      {/* Return to Title - Global */}
-      {gameState !== 'landing' && (
+      {/* Return to Title - Global (Hidden during end states for focus) */}
+      {gameState !== 'landing' && gameState !== 'timeout' && gameState !== 'gameOver' && (
         <div className="absolute bottom-10 right-10 z-[80] animate-in fade-in slide-in-from-bottom-5 duration-500">
             <button 
                 onClick={goToTitle}
@@ -1400,7 +1844,7 @@ export default function App() {
       />
 
       {gameState === 'landing' && (
-        <div className="absolute inset-0 bg-[#060606] z-[60] flex flex-col items-center justify-center p-10 overflow-hidden">
+        <div className="absolute inset-0 bg-[#060606] z-[400] flex flex-col items-center justify-between p-6 md:p-10 overflow-hidden">
             {/* Background Data Nodes */}
             <div className="absolute inset-0 pointer-events-none opacity-20">
               {[...Array(15)].map((_, i) => (
@@ -1449,7 +1893,7 @@ export default function App() {
                           <Bug className={`w-16 h-16 text-[#4285F4] relative z-10 ${isInitializing ? '' : 'animate-bounce'}`} style={{ animationDuration: '3s' }} />
                         </motion.div>
                     </div>
-                    <h1 className="text-[8vw] font-black text-white tracking-tighter leading-none select-none drop-shadow-[0_0_50px_rgba(66,133,244,0.4)] flex items-baseline gap-2 group">
+                    <h1 className="text-5xl sm:text-7xl md:text-[8vw] font-black text-white tracking-tighter leading-none select-none drop-shadow-[0_0_50px_rgba(66,133,244,0.4)] flex items-baseline gap-2 group text-center flex-wrap justify-center">
                         <span className="relative">
                             SYNTAX
                             <motion.div 
@@ -1476,30 +1920,33 @@ export default function App() {
                 </div>
             </div>
 
-            <div className="flex flex-col items-center gap-12 animate-in fade-in slide-in-from-bottom-5 duration-1000 delay-300">
-                <div className="flex flex-col items-center gap-2">
-                    <span className="text-[10px] text-gray-600 uppercase tracking-[0.3em] font-bold">Architecture by</span>
-                    <span className="text-sm text-gray-300 font-medium tracking-[0.1em]">Tanay Pandey</span>
+                <div className="flex flex-col items-center gap-2 mb-8 md:mb-12">
+                    <span className="text-[10px] md:text-xs text-gray-600 uppercase tracking-[0.3em] font-bold">Architecture by</span>
+                    <span className="text-sm md:text-base text-gray-300 font-medium tracking-[0.1em]">Tanay Pandey</span>
                 </div>
 
-                <div className="flex flex-col items-center gap-6">
+                <div className="w-full max-w-sm flex flex-col gap-6">
                     <button 
                         onClick={startGame}
                         disabled={isInitializing}
-                        className={`group relative px-20 py-6 bg-white hover:bg-[#4285F4] text-black hover:text-white transition-all duration-500 font-bold text-base tracking-[0.4em] uppercase overflow-hidden ${isInitializing ? 'opacity-50 cursor-wait bg-[#EA4335]' : ''}`}
+                        className={`group relative w-full py-6 md:py-8 bg-white hover:bg-[#4285F4] text-black hover:text-white transition-all duration-500 font-bold text-lg md:text-xl tracking-[0.4em] uppercase overflow-hidden ${isInitializing ? 'opacity-50 cursor-wait bg-[#EA4335]' : ''}`}
                     >
-                        <div className="relative z-10">{isInitializing ? 'OVERLOADING...' : 'INITIALIZE_CORE'}</div>
+                        <div className="relative z-10">{isInitializing ? 'INITIALIZING...' : 'INITIALIZE_CORE'}</div>
                         {!isInitializing && <div className="absolute inset-x-0 bottom-0 h-1 bg-[#4285F4] group-hover:bg-white transition-colors" />}
+                        <div className="absolute inset-0 bg-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>
 
-                    <button 
-                      onClick={() => setShowSettings(true)}
-                      className="group flex items-center justify-center gap-3 px-6 py-3 text-gray-600 hover:text-white transition-all duration-300 uppercase tracking-widest text-[9px] font-bold"
-                    >
-                      <Settings className="w-3.5 h-3.5 group-hover:rotate-90 transition-transform duration-500" />
-                      Configure Environment
-                    </button>
+                    {/* DEBUG BUTTONS - TO BE REMOVED */}
                 </div>
+
+            <div className="flex justify-center w-full">
+              <button 
+                onClick={toggleMute}
+                className="group flex items-center justify-center gap-3 px-6 py-3 text-gray-600 hover:text-white transition-all duration-300 uppercase tracking-widest text-[9px] font-bold"
+              >
+                {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                {isMuted ? 'UNMUTE_SYSTEM' : 'MUTE_SYSTEM'}
+              </button>
             </div>
 
             {/* Status Ticker */}
@@ -1513,237 +1960,263 @@ export default function App() {
 
         </div>
       )}
-
+        {/* System Failure / Danger Screen */}
       {gameState === 'timeout' && (
-        <div className="absolute inset-0 bg-[#060606] z-[70] flex flex-col items-center justify-center p-10 overflow-hidden">
-            <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: [0.05, 0.15, 0.05] }}
-                transition={{ duration: 0.1, repeat: Infinity }}
-                className="absolute inset-0 bg-red-900/20 pointer-events-none" 
-            />
+        <div className="absolute inset-0 bg-[#060000] z-[500] flex flex-col items-center justify-center p-4 md:p-10 overflow-hidden">
+            <FailureEffect />
             
+            {/* Background Glitch Overlays */}
             <motion.div 
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="text-center relative z-10"
-            >
-                <div className="text-[#EA4335] text-sm font-bold tracking-[0.5em] mb-8 animate-pulse flex items-center justify-center gap-4">
-                    <motion.div 
-                        animate={{ 
-                            opacity: [1, 0, 1],
-                            rotate: [0, 90, 0]
-                        }} 
-                        transition={{ duration: 0.1, repeat: Infinity }}
-                    >
-                        <Bug className="w-5 h-5 text-red-500" />
-                    </motion.div>
-                    CRITICAL_KERNEL_OVERRUN
-                    <motion.div 
-                        animate={{ 
-                            opacity: [1, 0, 1],
-                            rotate: [0, -90, 0]
-                        }} 
-                        transition={{ duration: 0.1, repeat: Infinity, delay: 0.05 }}
-                    >
-                        <Bug className="w-5 h-5 text-red-500" />
-                    </motion.div>
-                </div>
-                
-                <h1 className="text-8xl font-black text-white mb-6 tracking-tighter select-none">
-                    SYSTEM <span className="text-[#EA4335] animate-pulse">COMPROMISED</span>
-                </h1>
-                
-                <div className="relative max-w-2xl mx-auto mb-16 h-40 overflow-hidden bg-red-900/10 border border-red-500/20 p-4 font-mono text-[10px] text-red-500 text-left">
-                    <motion.div
-                        animate={{ y: [0, -200] }}
-                        transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-                    >
-                        {[...Array(40)].map((_, i) => (
-                            <div key={i} className="flex gap-4 opacity-40">
-                                <span> {Math.random().toString(16).slice(2, 10).toUpperCase()} </span>
-                                <span> ERR_CODE_{Math.floor(Math.random()*9999)} </span>
-                                <span> MEMORY_LEAK_DETECTION </span>
-                            </div>
-                        ))}
-                    </motion.div>
-                    <div className="absolute inset-0 bg-gradient-to-b from-[#060606] via-transparent to-[#060606]" />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                         <span className="text-xl font-black bg-black/80 px-4 py-2 border border-red-500 shadow-[0_0_20px_#EA4335]">HALT AT STEP {level}</span>
-                    </div>
-                </div>
-                
-                <div className="flex gap-4 justify-center">
-                    <button 
-                        onClick={resetGame}
-                        className="group relative px-12 py-5 bg-[#EA4335] hover:bg-white text-white hover:text-black transition-all duration-300 font-black text-xs tracking-[0.3em] uppercase overflow-hidden shadow-[0_0_30px_rgba(234,67,53,0.3)]"
-                    >
-                        <div className="relative z-10">RE-INITIALIZE_LINK</div>
-                        <div className="absolute inset-0 bg-black translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                    </button>
-                </div>
-            </motion.div>
+               animate={{ opacity: [0, 0.4, 0, 0.2, 0] }}
+               transition={{ duration: 0.1, repeat: Infinity }}
+               className="absolute inset-0 bg-red-900/10 pointer-events-none"
+            />
 
-            {/* Glitch Overlay Elements */}
-            <div className="absolute inset-0 pointer-events-none opacity-20">
-                {[...Array(6)].map((_, i) => (
-                    <motion.div
-                        key={i}
-                        className="absolute bg-red-600/30 h-px"
-                        style={{ 
-                            top: `${Math.random() * 100}%`, 
-                            left: 0, 
-                            right: 0 
-                        }}
-                        animate={{ 
-                            scaleX: [0, 1, 0],
-                            opacity: [0, 1, 0],
-                            x: [-10, 10, -10]
-                        }}
-                        transition={{ 
-                            duration: 0.2 + Math.random() * 0.3, 
-                            repeat: Infinity,
-                            delay: Math.random() * 2
-                        }}
-                    />
-                ))}
-            </div>
-        </div>
-      )}
-
-      {gameState === 'gameOver' && (
-        <div className="absolute inset-0 bg-[#0c0c0c]/98 flex items-center justify-center flex-col z-30 backdrop-blur-2xl animate-in fade-in duration-1000 overflow-hidden py-10">
-            {/* Background Binary Stream */}
-            <div className="absolute inset-0 pointer-events-none opacity-5 font-mono text-[10px] grid grid-cols-12 gap-2 p-4 select-none overflow-hidden">
-               {[...Array(24)].map((_, col) => (
-                  <motion.div 
-                    key={col} 
-                    className="flex flex-col gap-1 text-[#4285F4]"
-                    animate={{ y: [0, -500] }}
-                    transition={{ duration: 5 + Math.random() * 5, repeat: Infinity, ease: "linear" }}
-                  >
-                    {[...Array(100)].map((_, i) => (
-                      <span key={i}>{Math.round(Math.random())}</span>
-                    ))}
-                  </motion.div>
+            {/* Perimeter Warning Lines */}
+            <div className="absolute inset-2 border-2 border-red-900/30 pointer-events-none overflow-hidden">
+               <motion.div 
+                 animate={{ scale: [1, 1.02, 1] }}
+                 transition={{ duration: 0.5, repeat: Infinity }}
+                 className="absolute inset-0 border-[20px] border-red-600/5"
+               />
+               
+               {/* Floating Error Labels */}
+               {[...Array(8)].map((_, i) => (
+                 <motion.div
+                   key={i}
+                   initial={{ 
+                     x: Math.random() * window.innerWidth, 
+                     y: Math.random() * window.innerHeight,
+                     opacity: 0
+                   }}
+                   animate={{ 
+                     opacity: [0, 1, 0],
+                     y: [null, '-=50']
+                   }}
+                   transition={{ 
+                     duration: 1 + Math.random(), 
+                     repeat: Infinity,
+                     repeatDelay: Math.random() * 2
+                   }}
+                   className="absolute font-mono text-[8px] md:text-[10px] text-red-500 flex items-center gap-2 whitespace-nowrap bg-black/40 px-2 py-1 border border-red-600/30"
+                 >
+                   <AlertTriangle className="w-2 h-2" />
+                   {['CRITICAL_FAULT', 'TIMEOUT', 'EXCEPTION', 'MEMORY_LEAK', 'KERNEL_PANIC', 'ID_CORRUPTED'][Math.floor(Math.random() * 6)]}
+                 </motion.div>
                ))}
             </div>
 
-            {/* Success Background Particles */}
-            <div className="absolute inset-0 pointer-events-none opacity-30">
-                {[...Array(40)].map((_, i) => (
-                    <motion.div
-                        key={i}
-                        className="absolute bg-[#4285F4] w-1 h-1 rounded-full shadow-[0_0_10px_#4285F4]"
-                        style={{ 
-                            left: `${Math.random() * 100}%`, 
-                            top: `${Math.random() * 100}%` 
-                        }}
-                        animate={{ 
-                            scale: [0, 2, 0],
-                            opacity: [0, 0.8, 0],
-                            y: [0, -200],
-                            x: [0, (Math.random() - 0.5) * 50]
-                        }}
-                        transition={{ 
-                            duration: 2 + Math.random() * 3, 
-                            repeat: Infinity,
-                            delay: Math.random() * 2
-                        }}
-                    />
-                ))}
-            </div>
-
-            {/* Radar Scan Overlay */}
             <motion.div 
-              className="absolute inset-0 pointer-events-none z-10 opacity-20"
-              style={{
-                background: 'conic-gradient(from 0deg, transparent 0deg, #4285F4 20deg, transparent 40deg)',
-                maskImage: 'radial-gradient(circle, black, transparent 70%)',
-                WebkitMaskImage: 'radial-gradient(circle, black, transparent 70%)'
-              }}
-              animate={{ rotate: 360 }}
-              transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
-            />
-
-            {/* Scanning Line */}
-            <motion.div 
-              className="absolute inset-0 bg-gradient-to-b from-transparent via-[#4285F4]/5 to-transparent h-40 w-full pointer-events-none z-20"
-              animate={{ top: ['-20%', '120%'] }}
-              transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-            />
-
-            <div className="relative z-20 flex flex-col items-center w-full max-w-5xl px-10 scale-90 md:scale-100">
-                <div className="relative mb-12 sm:mb-16">
-                    <motion.h1 
-                      initial={{ scale: 0.5, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 0.05 }}
-                      transition={{ duration: 1.5, ease: "easeOut" }}
-                      className="text-[10rem] md:text-[14rem] font-black text-white tracking-tighter leading-none select-none absolute -top-12 md:-top-16 left-1/2 -translate-x-1/2 whitespace-nowrap"
+                initial={{ scale: 1.2, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="relative z-10 flex flex-col items-center justify-center h-full w-full max-w-5xl text-center py-4 gap-2 md:gap-6 overflow-hidden"
+            >
+                <div className="flex flex-col items-center gap-1 md:gap-2 w-full">
+                    <motion.h2 
+                      animate={{ opacity: [0.8, 1, 0.8], scale: [1, 1.01, 1] }}
+                      transition={{ duration: 0.1, repeat: Infinity }}
+                      className="text-red-600 font-mono text-lg md:text-3xl font-black italic tracking-[0.2em] drop-shadow-[0_0_20px_rgba(153,0,0,0.8)]"
                     >
-                      SUCCESS
-                    </motion.h1>
-                    <motion.h1 
-                      initial={{ y: 40, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ delay: 0.3, duration: 0.8, type: "spring" }}
-                      className="text-6xl md:text-9xl font-black text-white tracking-tighter drop-shadow-[0_0_60px_rgba(66,133,244,0.6)] relative z-10 text-center"
-                    >
-                        KERNEL <span className="text-[#4285F4] animate-pulse">COMPILED</span>
-                    </motion.h1>
+                      &lt;SYSTEM DANGER /&gt;
+                    </motion.h2>
+
+                    <div className="relative mb-2">
+                        {/* Fractured Icon */}
+                        <motion.div
+                          animate={{ 
+                            x: [0, -3, 3, 0],
+                            y: [0, 1, -1, 0],
+                            filter: ['hue-rotate(0deg)', 'hue-rotate(15deg)', 'hue-rotate(-15deg)', 'hue-rotate(0deg)']
+                          }}
+                          transition={{ duration: 0.08, repeat: Infinity }}
+                          className="relative"
+                        >
+                          <div className="absolute inset-0 bg-red-600/20 blur-3xl rounded-full scale-110" />
+                          <div className="relative flex items-center">
+                             <XCircle className="w-16 h-16 md:w-32 md:h-32 text-red-700 drop-shadow-[0_0_30px_#990000]" strokeWidth={1} />
+                             <div className="absolute inset-0 flex items-center justify-center">
+                               <GlitchText text="X" className="text-red-500 text-4xl md:text-6xl font-black" />
+                             </div>
+                             {/* Cracks/Lines */}
+                             <motion.div 
+                                animate={{ opacity: [0, 0.8, 0] }}
+                                transition={{ duration: 0.04, repeat: Infinity }}
+                                className="absolute inset-0 border-t-2 border-red-400/40 rotate-[35deg] translate-y-8 scale-150" 
+                             />
+                             <motion.div 
+                                animate={{ opacity: [0, 0.8, 0], delay: 0.02 }}
+                                transition={{ duration: 0.06, repeat: Infinity }}
+                                className="absolute inset-0 border-t-2 border-red-500/40 -rotate-[45deg] -translate-y-4 scale-150" 
+                             />
+                          </div>
+                        </motion.div>
+                    </div>
+
+                    <div className="relative">
+                      <motion.h1 
+                        animate={{ x: [0, -1, 1, 0] }}
+                        transition={{ duration: 0.1, repeat: Infinity }}
+                        className="text-red-600 text-3xl md:text-7xl font-black tracking-[0.2em] uppercase drop-shadow-[0_0_20px_rgba(255,0,0,0.3)] relative"
+                      >
+                        <span className="relative">
+                          GAME OVER
+                          {/* More aggressive "Cracked" effect line */}
+                          <div className="absolute inset-x-0 top-[40%] h-0.5 bg-[#060000] rotate-3 -translate-y-1/2 scale-x-125" />
+                          <div className="absolute inset-x-0 top-[60%] h-px bg-[#060000] -rotate-2 -translate-y-1/2 scale-x-110" />
+                          <div className="absolute inset-x-0 top-[30%] h-px bg-red-900/40 rotate-[10deg] -translate-y-1/2" />
+                        </span>
+                      </motion.h1>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 w-full max-w-2xl mt-4">
+                        <div className="flex flex-col items-center justify-center p-3 md:p-6 bg-red-950/40 border border-red-600/40 rounded-sm relative overflow-hidden backdrop-blur-md">
+                           <div className="absolute inset-0 pointer-events-none border-x-2 border-red-600/20" />
+                           <span className="text-red-500/80 font-mono text-[8px] md:text-sm uppercase tracking-[0.2em] font-bold mb-1">FAILED AT STEP:</span>
+                           <span className="text-red-600 font-mono text-2xl md:text-5xl font-black italic">
+                             {11 - level} <span className="text-red-900 mx-1 md:mx-2">/</span> 10
+                           </span>
+                        </div>
+                        <div className="flex flex-col items-center justify-center p-3 md:p-6 bg-red-950/40 border border-red-600/40 rounded-sm relative overflow-hidden backdrop-blur-md">
+                           <div className="absolute inset-0 pointer-events-none border-x-2 border-red-600/20" />
+                           <span className="text-red-500/80 font-mono text-[8px] md:text-sm uppercase tracking-[0.2em] font-bold mb-1">FINAL SCORE:</span>
+                           <span className="text-red-600 font-mono text-2xl md:text-5xl font-black italic">
+                             <Counter value={score} />
+                           </span>
+                        </div>
+                    </div>
                 </div>
-                
-                <motion.div 
-                   initial={{ scaleX: 0 }}
-                   animate={{ scaleX: 1 }}
-                   transition={{ delay: 1, duration: 1 }}
-                   className="text-[#34A853] tracking-[0.8em] sm:tracking-[1.5em] mb-12 sm:mb-20 uppercase text-[9px] sm:text-[11px] font-bold flex items-center gap-4 border-y border-[#34A853]/20 py-4 px-10 sm:px-20 bg-[#34A853]/5"
+
+                <div className="flex flex-col sm:flex-row gap-3 w-full mt-4 max-w-2xl">
+                    <button 
+                        onClick={resetGame}
+                        className="flex-1 group relative px-6 py-2 md:py-4 bg-[#ef4444] text-white font-black uppercase tracking-[0.1em] hover:bg-white hover:text-[#ef4444] transition-all duration-300 shadow-2xl active:scale-95 text-[10px] md:text-base border-2 border-[#ef4444]"
+                    >
+                        <span className="relative z-10 flex items-center justify-center gap-2">
+                            <RefreshCw className="w-4 h-4 md:w-5 md:h-5 group-hover:rotate-180 transition-transform duration-500" />
+                            REINITIALIZE
+                        </span>
+                    </button>
+                    <button 
+                        onClick={goToTitle}
+                        className="flex-1 group relative px-6 py-2 md:py-4 border-2 border-red-600 text-red-500 font-black uppercase tracking-[0.1em] hover:bg-red-600 hover:text-white transition-all duration-300 shadow-xl active:scale-95 text-[10px] md:text-base"
+                    >
+                        <span className="relative z-10 flex items-center justify-center gap-2">
+                            <Home className="w-4 h-4 md:w-5 md:h-5" />
+                            ROOT_EXIT
+                        </span>
+                    </button>
+                </div>
+            </motion.div>
+        </div>
+      )}
+
+       {/* Success / Game Over Screen */}
+      {gameState === 'gameOver' && (
+        <div className="absolute inset-0 bg-[#060606] flex items-center justify-center flex-col z-[500] transition-all duration-1000 overflow-hidden p-4 md:p-10">
+            <SuccessEffect />
+
+            {/* Floating 'ERR' Bugs disintegrating */}
+            <div className="absolute inset-0 pointer-events-none">
+              {[...Array(6)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ 
+                    x: i % 2 === 0 ? -100 : window.innerWidth + 100, 
+                    y: Math.random() * window.innerHeight,
+                    opacity: 1,
+                    scale: 1 
+                  }}
+                  animate={{ 
+                    x: i % 2 === 0 ? window.innerWidth / 4 : window.innerWidth * 0.75,
+                    opacity: [1, 0.5, 0],
+                    scale: [1, 1.2, 0],
+                    rotate: [0, 45, 90]
+                  }}
+                  transition={{ 
+                    duration: 2 + Math.random() * 2, 
+                    delay: Math.random() * 1.5,
+                    repeat: Infinity,
+                    repeatDelay: 5
+                  }}
+                  className="absolute flex flex-col items-center gap-1"
                 >
-                    <span className="w-2 h-2 bg-[#34A853] rounded-full animate-ping" />
-                    Stability integrity verified across all sectors
+                  <Bug className="text-red-600 w-8 h-8 md:w-12 md:h-12 drop-shadow-[0_0_15px_rgba(234,67,53,0.5)]" />
+                  <span className="text-red-500 font-mono text-[10px] font-bold">ERR</span>
                 </motion.div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-12 mb-16 sm:mb-24 w-full">
+              ))}
+            </div>
+
+            <motion.div 
+               initial={{ opacity: 0, scale: 0.8 }}
+               animate={{ opacity: 1, scale: 1 }}
+               className="relative z-10 flex flex-col items-center justify-center h-full w-full max-w-6xl px-4 md:px-10 text-center py-2 gap-4 md:gap-6 overflow-y-auto"
+            >
+                <div className="flex flex-col items-center w-full gap-2 md:gap-4">
+                    {/* Icon and Title Group */}
+                    <div className="flex flex-col md:flex-row items-center justify-center gap-4 md:gap-8 mb-2">
+                        <motion.h1 
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.3 }}
+                            className="text-green-500 text-3xl sm:text-5xl md:text-6xl font-mono font-black tracking-tighter uppercase drop-shadow-[0_0_20px_rgba(34,197,94,0.4)]"
+                        >
+                            &lt;Compilation Successfull /&gt;
+                        </motion.h1>
+                    </div>
+
                     <motion.div 
-                      initial={{ x: -20, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      transition={{ delay: 1.3 }}
-                      className="text-center group border-l-2 border-white/10 pl-6 sm:pl-10 hover:border-[#4285F4] transition-all duration-500 bg-white/[0.03] p-4 sm:p-6 rounded-r-xl"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.6 }}
+                        className="flex flex-col gap-1 mb-2"
                     >
-                        <div className="text-gray-600 text-[10px] uppercase tracking-[0.3em] mb-2 sm:mb-4 group-hover:text-[#4285F4] transition-colors font-mono">Calculated Stability</div>
-                        <div className="text-5xl md:text-7xl text-white font-black tracking-tighter">{score.toLocaleString()}</div>
+                        <div className="text-[#34A853] font-mono text-lg md:text-2xl font-bold tracking-[0.3em] uppercase drop-shadow-[0_0_10px_#34A853]">
+                            BUGS PURGED: {totalSpawned > 0 ? Math.round((totalPurged/totalSpawned)*100) : 100}%
+                        </div>
+                        <div className="text-[#34A853] font-mono text-[8px] md:text-xs tracking-[0.6em] uppercase opacity-80">
+                            SYSTEM CLEAN
+                        </div>
                     </motion.div>
+
                     <motion.div 
-                      initial={{ y: 20, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ delay: 1.5 }}
-                      className="text-center group border-l-2 border-white/10 pl-6 sm:pl-10 hover:border-[#34A853] transition-all duration-500 bg-white/[0.03] p-4 sm:p-6 rounded-r-xl"
+                        className="text-white text-4xl sm:text-6xl md:text-8xl font-black tracking-tighter leading-none drop-shadow-[0_0_30px_rgba(66,133,244,0.3)] mb-2"
                     >
-                        <div className="text-gray-600 text-[10px] uppercase tracking-[0.3em] mb-2 sm:mb-4 group-hover:text-[#34A853] transition-colors font-mono">Execution Time</div>
-                        <div className="text-5xl md:text-7xl text-white font-black tracking-tighter">{formatTime(gameTime)}</div>
+                        <Counter value={score} duration={2} />
                     </motion.div>
-                    <motion.div 
-                      initial={{ x: 20, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      transition={{ delay: 1.7 }}
-                      className="text-center group border-l-2 border-white/10 pl-6 sm:pl-10 hover:border-[#FBBC05] transition-all duration-500 bg-white/[0.03] p-4 sm:p-6 rounded-r-xl"
-                    >
-                        <div className="text-gray-600 text-[10px] uppercase tracking-[0.3em] mb-2 sm:mb-4 group-hover:text-[#FBBC05] transition-colors font-mono">Historical Build</div>
-                        <div className="text-5xl md:text-7xl text-[#FBBC05] font-black tracking-tighter">{highScore.toLocaleString()}</div>
-                    </motion.div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-6 w-full max-w-xl">
+                        <div className="flex flex-col items-center p-3 md:p-4 border border-white/10 bg-white/5 backdrop-blur-md rounded-lg">
+                            <span className="text-gray-400 font-mono text-[8px] md:text-xs uppercase tracking-widest mb-1">Execution Time</span>
+                            <span className="text-white font-mono text-lg md:text-2xl font-bold">{(finalTime / 1000).toFixed(2)}s</span>
+                        </div>
+                        <div className="flex flex-col items-center p-3 md:p-4 border border-yellow-500/20 bg-yellow-500/5 backdrop-blur-md rounded-lg">
+                            <span className="text-yellow-500/60 font-mono text-[8px] md:text-xs uppercase tracking-widest mb-1">Peak Core Score</span>
+                            <span className="text-yellow-500 font-mono text-lg md:text-2xl font-bold">{highScore.toLocaleString()}</span>
+                        </div>
+                    </div>
                 </div>
 
-                <motion.button 
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 2, duration: 0.5 }}
-                    onClick={resetGame}
-                    className="group relative px-16 sm:px-24 py-8 sm:py-10 bg-white text-black font-black uppercase tracking-[0.4em] hover:bg-[#4285F4] hover:text-white transition-all duration-700 cursor-pointer overflow-hidden shadow-[0_20px_80px_rgba(66,133,244,0.3)] hover:scale-105 active:scale-95"
-                >
-                    <span className="relative z-10 text-lg sm:text-2xl">RE-INITIALIZE KERNEL</span>
-                    <div className="absolute inset-0 bg-[#4285F4] translate-y-full group-hover:translate-y-0 transition-transform duration-500 cubic-bezier(0.19, 1, 0.22, 1)" />
-                </motion.button>
-            </div>
+                <div className="flex flex-col sm:flex-row gap-3 w-full mt-2 max-w-3xl">
+                    <button 
+                        onClick={resetGame}
+                        className="flex-1 group relative px-6 py-3 md:py-6 bg-[#34A853] text-white font-black uppercase tracking-[0.1em] md:tracking-[0.3em] hover:bg-white hover:text-[#34A853] transition-all duration-300 shadow-2xl active:scale-95 text-[10px] md:text-lg border-2 md:border-4 border-[#34A853]"
+                    >
+                        <span className="relative z-10 flex items-center justify-center gap-3">
+                            <RefreshCw className="w-4 h-4 md:w-5 md:h-5 group-hover:rotate-180 transition-transform duration-500" />
+                            REINITIALIZE
+                        </span>
+                    </button>
+                    <button 
+                        onClick={goToTitle}
+                        className="flex-1 group relative px-6 py-3 md:py-6 border-2 md:border-4 border-white text-white font-black uppercase tracking-[0.1em] md:tracking-[0.3em] hover:bg-white hover:text-black transition-all duration-300 shadow-xl active:scale-95 text-[10px] md:text-lg"
+                    >
+                        <span className="relative z-10 flex items-center justify-center gap-3">
+                            <Home className="w-4 h-4 md:w-5 md:h-5" />
+                            ROOT_EXIT
+                        </span>
+                    </button>
+                </div>
+            </motion.div>
         </div>
       )}
     </div>
