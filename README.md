@@ -1,18 +1,18 @@
 # Syntax Swarm
 
-Syntax Swarm is a high-octane, glitch-themed arcade game where you play as a system architect fighting against a relentless wave of corrupted syntax. Set in a world of terminal-inspired visuals and procedural audio, it challenges your reflexes and system management skills.
+Syntax Swarm is a high-octane, glitch-themed arcade game where you play as a system architect fighting against a relentless wave of corrupted syntax. Set in a world of terminal-inspired visuals and procedural audio, it challenges your reflexes and precision.
 
 ## 💾 The Story
 A catastrophic kernel overflow has triggered a "Syntax Swarm." Corrupted data blocks are flooding the cache, threatening to destabilize the entire OS. Your mission is to purge these anomalies, stabilize the syntax, and reach the final compilation before the system hits a critical breakdown.
 
-## 🎮 How to Play
-- **Objective**: Purge a specific number of corrupted nodes in each level to advance.
-- **Controls**:
-  - **Click/Tap**: Purge a targeted anomaly. 
-  - **Mute Toggle**: Control the "System Audio" if the glitch noise becomes too intense.
-  - **Settings**: Adjust system parameters mid-game (accessible from the main game screen).
-- **Levels**: The swarm gets faster and more erratic with every level. Complete 10 levels to reach "Compilation Success."
-- **Game Over**: If the timer runs out before the purge quota is met, the system crashes and enters a `SYSTEM_DANGER` state.
+## 🎮 How to Play: The Laser Sync Mechanic
+Unlike standard clicker games, **Syntax Swarm** uses a specialized "Laser Purge" mechanic:
+
+- **The Laser Drag**: To eliminate bugs, you must **Click/Touch and Drag** across the screen. This creates a high-energy laser beam that tracks your movement.
+- **The Purge**: Any corrupted syntax node (the bugs) that comes into contact with the beam is instantly vaporized.
+- **Closing the Bracket**: As you drag, the laser visually evolves, eventually "closing the bracket" on the corrupted segment to confirm the purge.
+- **Objective**: Reach the purge quota for each level before the system timer expires.
+- **Constraints**: The swarm gets faster and more erratic with every level. Complete 10 levels to reach "Compilation Success."
 
 ## 🛠️ Built With
 - **Framework**: [React 18](https://reactjs.org/) + [Vite](https://vitejs.dev/)
@@ -36,7 +36,7 @@ To run **Syntax Swarm** on your own machine:
    ```bash
    npm run dev
    ```
-4. **Access**: Open your browser to the local port (usually `http://localhost:3000`).
+4. **Access**: Open your browser to `http://localhost:3000`.
 
 ---
 
