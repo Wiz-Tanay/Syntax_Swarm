@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { sounds } from './services/soundService';
 import { Settings, Check, Volume2, Cpu, Type, Bug } from 'lucide-react';
 
@@ -133,19 +133,23 @@ class Particle {
     this.bugTimer = Math.random() * 100;
   }
 
-  update(mode: 'normal' | 'exploding', mouse: { x: number, y: number } | null, difficulty: DifficultyPreset) {
+  update(mode: 'normal' | 'exploding', mouse: { x: number, y: number } | null, difficulty: DifficultyPreset, errativeness: number = 50) {
     if (mode === 'exploding') {
       this.x += this.vx;
       this.y += this.vy;
       this.vx *= 0.98;
       this.vy *= 0.98;
     } else {
-      this.bugTimer += 0.08; // Faster animation
+      const errRatio = errativeness / 50;
+      // Exponentially increase scuttle speed at high errativeness
+      const finalErrRatio = Math.pow(errRatio, 1.5);
+      this.bugTimer += 0.08 * finalErrRatio; 
+      
       // Bug autonomous movement (crawling within boundaries)
       if (this.isCollectible && !this.collected) {
         // Drift around base target
-        const crawlRadius = 45; 
-        const crawlSpd = 1.2;
+        const crawlRadius = 45 * finalErrRatio; 
+        const crawlSpd = 1.2 * finalErrRatio;
         this.tx = this.baseTx + Math.sin(this.bugTimer * crawlSpd) * crawlRadius;
         this.ty = this.baseTy + Math.cos(this.bugTimer * crawlSpd * 1.8) * crawlRadius;
         
@@ -155,8 +159,8 @@ class Particle {
           const mdy = this.y - mouse.y;
           const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
           if (mdist < 160 && mdist > 30) {
-            this.ox += mdx * 0.04;
-            this.oy += mdy * 0.04;
+            this.ox += mdx * 0.06 * finalErrRatio; // More aggressive evasion
+            this.oy += mdy * 0.06 * finalErrRatio;
           }
         }
       }
@@ -175,10 +179,10 @@ class Particle {
         }
       }
 
-      // Organic drift and vibration scaled by difficulty
-      const driftX = Math.sin(this.bugTimer * 1.4) * 4 * difficulty.speedMult;
-      const driftY = Math.cos(this.bugTimer * 1.2) * 4 * difficulty.speedMult;
-      const vibration = (Math.random() - 0.5) * 2 * difficulty.erraticism * 50;
+      // Organic drift and vibration
+      const driftX = Math.sin(this.bugTimer * 1.4) * 5 * difficulty.speedMult * finalErrRatio;
+      const driftY = Math.cos(this.bugTimer * 1.2) * 5 * difficulty.speedMult * finalErrRatio;
+      const vibration = (Math.random() - 0.5) * 3 * difficulty.erraticism * 50 * finalErrRatio;
 
       const targetX = this.tx + this.ox + this.hoverX + driftX + vibration;
       const targetY = this.ty + this.oy + this.hoverY + driftY + vibration;
@@ -190,11 +194,17 @@ class Particle {
       this.x += this.vx;
       this.y += this.vy;
 
-      this.x += (Math.random() - 0.5) * 0.3;
-      this.y += (Math.random() - 0.5) * 0.3;
+      // Teleportation-style jitter at high errativeness
+      if (errativeness > 80 && Math.random() > 0.95) {
+        this.x += (Math.random() - 0.5) * 40;
+        this.y += (Math.random() - 0.5) * 40;
+      }
 
-      this.ox *= 0.96;
-      this.oy *= 0.96;
+      this.x += (Math.random() - 0.5) * 0.5 * finalErrRatio;
+      this.y += (Math.random() - 0.5) * 0.5 * finalErrRatio;
+
+      this.ox *= 0.95;
+      this.oy *= 0.95;
     }
   }
 
@@ -239,6 +249,129 @@ class Particle {
   }
 }
 
+interface ScoutingBugProps {
+  id: number;
+}
+
+const ScoutingBug: React.FC<ScoutingBugProps> = ({ id }) => {
+  // Each bug starts in a different corner/area
+  const startPos = useMemo(() => {
+    const positions = [
+      { x: -900, y: -500 }, // NW
+      { x: 900, y: -500 },  // NE
+      { x: 900, y: 500 },   // SE
+      { x: -900, y: 500 },  // SW
+      { x: 0, y: -800 },    // N
+      { x: 1000, y: 0 },    // East Center
+      { x: 800, y: 300 },   // East Bottom
+      { x: 0, y: 1200 },    // Far Bottom Center
+    ];
+    return positions[id % positions.length];
+  }, [id]);
+
+  const [coords, setCoords] = useState({ ...startPos, rotate: 0 });
+  
+  // Generate a unique path for this bug instance that covers the whole screen
+  const waypoints = useMemo(() => {
+    const pts: {x: number, y: number}[] = [];
+    
+    const logoPoints = [
+      { x: -280, y: -80 }, { x: 0, y: -120 }, { x: 280, y: -80 },
+      { x: 250, y: 100 }, { x: 0, y: 150 }, { x: -250, y: 100 }
+    ];
+
+    const wideNodes = [
+      { x: -1200, y: -700 }, { x: 1200, y: -700 },
+      { x: 1200, y: 700 }, { x: -1200, y: 700 },
+      { x: 600, y: 0 }, { x: -600, y: 0 },
+      { x: 0, y: 600 }, { x: 0, y: -600 }
+    ];
+
+    const rightSideNodes = [
+      { x: 800, y: -600 }, { x: 1100, y: -200 }, { x: 700, y: 300 },
+      { x: 1000, y: 600 }, { x: 500, y: 100 }, { x: 1200, y: 0 }
+    ];
+
+    const bottomNodes = [
+      { x: 0, y: 400 }, { x: -300, y: 700 }, { x: 300, y: 800 },
+      { x: -500, y: 500 }, { x: 500, y: 600 }, { x: 0, y: 900 }
+    ];
+    
+    // Different behaviors based on ID
+    if (id === 0) {
+      pts.push(...logoPoints, ...wideNodes);
+    } else if (id === 1) {
+      pts.push(...wideNodes.reverse(), ...logoPoints.reverse());
+    } else if (id === 7) {
+      // Bottom Center specialist
+      pts.push(...bottomNodes.sort(() => Math.random() - 0.5));
+      pts.push({ x: 0, y: 200 }); // Peek up
+    } else if (id >= 5) {
+      // Right side specialists (weird zig-zag patterns)
+      pts.push(...rightSideNodes.sort(() => Math.random() - 0.5));
+      pts.push({ x: 300, y: 0 }); // Peek at logo
+    } else {
+      // Random scramble covering all screen sectors
+      const combined = [...logoPoints, ...wideNodes].sort(() => Math.random() - 0.5);
+      pts.push(...combined);
+    }
+
+    return pts;
+  }, [id]);
+
+  const pathIndex = useRef(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const current = waypoints[pathIndex.current];
+      pathIndex.current = (pathIndex.current + 1) % waypoints.length;
+      const next = waypoints[pathIndex.current];
+      
+      const dx = next.x - current.x;
+      const dy = next.y - current.y;
+      const angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+
+      setCoords({ x: next.x, y: next.y, rotate: angle });
+    }, 2500 + (id * 500)); // Distinct timing per bug
+
+    return () => clearInterval(interval);
+  }, [waypoints, id]);
+
+  return (
+    <motion.div 
+      className="absolute z-50 pointer-events-none"
+      initial={startPos}
+      animate={{ 
+        x: coords.x,
+        y: coords.y,
+        rotate: coords.rotate,
+        opacity: [0, 1]
+      }}
+      transition={{ 
+        duration: 3, 
+        ease: "easeInOut"
+      }}
+    >
+      <motion.div
+        animate={{ 
+          scale: [1, 1.05, 1],
+          opacity: [1, 0.8, 1],
+        }}
+        transition={{ duration: 0.5, repeat: Infinity }}
+      >
+        <Bug className="w-8 h-8 text-[#4285F4] drop-shadow-[0_0_15px_#4285F4]" />
+        
+        {/* Minimal trail */}
+        <motion.div 
+          className="absolute top-1/2 left-1/2 w-4 h-[1px] bg-[#4285F4]/10 -translate-x-1/2"
+          animate={{ scaleX: [0, 1.5, 0], opacity: [0, 0.4, 0] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        />
+      </motion.div>
+    </motion.div>
+  );
+};
+
 export default function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [level, setLevel] = useState(0);
@@ -254,14 +387,51 @@ export default function App() {
   const [isCompromised, setIsCompromised] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [volume, setVolume] = useState(30);
+  const [bugCount, setBugCount] = useState(1);
+
+  // Landing screen bug spawning
+  useEffect(() => {
+    if (gameState === 'landing') {
+      const interval = setInterval(() => {
+        setBugCount(prev => (prev < 8 ? prev + 1 : prev));
+      }, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [gameState]);
+
   const [difficulty, setDifficulty] = useState('normal');
   const [numberStyle, setNumberStyle] = useState('industrial');
+  const [errativeness, setErrativeness] = useState(50);
+  const errativenessRef = useRef(50);
+
+  useEffect(() => {
+    errativenessRef.current = errativeness;
+  }, [errativeness]);
+
+  const [isInitializing, setIsInitializing] = useState(false);
+  const [showCrash, setShowCrash] = useState(false);
+
+  // Music & Gameplay lifecycle
+  useEffect(() => {
+    if (gameState === 'landing') {
+      sounds.startTitleMusic();
+    } else if (gameState === 'gameOver' || gameState === 'timeout') {
+      sounds.stopMusic();
+    }
+  }, [gameState]);
+  
+  // Start title music immediately if we land on title
+  useEffect(() => {
+    if (gameState === 'landing') {
+      sounds.startTitleMusic();
+    }
+  }, []);
 
   // Timer-based tremor during last 15s
   useEffect(() => {
     if (gameState === 'idle' && gameTime > DIFFICULTIES[difficulty].timeLimit - 15000) {
       const interval = setInterval(() => {
-        setShake(s => s < 1 ? 2 : s); // Very subtle tremor
+        setShake(s => s < 1 ? 2 : s); 
       }, 400);
       return () => clearInterval(interval);
     }
@@ -487,10 +657,22 @@ export default function App() {
         gameTimeRef.current += delta;
         setGameTime(gameTimeRef.current);
         
+        const limit = currentDiff.timeLimit;
+        const threshold = limit - 15000;
+        
+        if (gameTimeRef.current > threshold) {
+          // Last 15 seconds: Increase pitch 
+          const progress = (gameTimeRef.current - threshold) / 15000;
+          const pitchFactor = 1.0 + progress * 0.4; // 1.0 to 1.4
+          sounds.setMusicPitch(pitchFactor);
+        } else {
+          sounds.setMusicPitch(1.0);
+        }
+
         // Timeout check
-        if (gameTimeRef.current >= currentDiff.timeLimit) {
+        if (gameTimeRef.current >= limit) {
           timerActive.current = false;
-          sounds.stopSwarm();
+          sounds.stopMusic();
           sounds.playTimeout();
           gameStateRef.current = 'timeout';
           setGameState('timeout');
@@ -518,7 +700,7 @@ export default function App() {
       
       const mouse = mousePos.current;
       particles.current.forEach(p => {
-        p.update(mode, mouse, currentDiff);
+        p.update(mode, mouse, currentDiff, errativenessRef.current);
         p.draw(ctx);
       });
 
@@ -657,25 +839,38 @@ export default function App() {
 
         if (laserPath.current.length > 0) {
           ctx.save();
+          
+          const isError = errorFrameCount.current > 0;
+          
           // Inner core
           ctx.beginPath();
-          ctx.strokeStyle = '#fff';
-          ctx.lineWidth = 4;
+          ctx.strokeStyle = isError ? '#EA4335' : '#fff';
+          ctx.lineWidth = isError ? 10 + Math.random() * 10 : 4;
           ctx.lineCap = 'round';
           ctx.lineJoin = 'round';
+          
           ctx.moveTo(laserPath.current[0].x, laserPath.current[0].y);
-          laserPath.current.forEach(p => ctx.lineTo(p.x, p.y));
+          laserPath.current.forEach(p => {
+            const jitter = isError ? (Math.random() - 0.5) * 25 : 0;
+            ctx.lineTo(p.x + jitter, p.y + jitter);
+          });
           ctx.stroke();
 
           // Outer Glow
           ctx.beginPath();
-          ctx.strokeStyle = `rgba(66, 133, 244, ${gameStateRef.current === 'drawing' ? 0.9 : 0.4})`;
-          ctx.lineWidth = 18;
-          ctx.shadowBlur = 30;
-          ctx.shadowColor = '#4285F4';
+          ctx.strokeStyle = isError ? `rgba(234, 67, 53, ${Math.random() * 0.8})` : `rgba(66, 133, 244, ${gameStateRef.current === 'drawing' ? 0.9 : 0.4})`;
+          ctx.lineWidth = isError ? 30 : 18;
+          ctx.shadowBlur = isError ? 50 : 30;
+          ctx.shadowColor = isError ? '#EA4335' : '#4285F4';
+          
           ctx.moveTo(laserPath.current[0].x, laserPath.current[0].y);
-          laserPath.current.forEach(p => ctx.lineTo(p.x, p.y));
+          laserPath.current.forEach(p => {
+            const jitter = isError ? (Math.random() - 0.5) * 40 : 0;
+            ctx.lineTo(p.x + jitter, p.y + jitter);
+          });
           ctx.stroke();
+          
+          if (isError) errorFrameCount.current--; // Decay error frame count
           ctx.restore();
         }
 
@@ -770,7 +965,6 @@ export default function App() {
         const multBonus = collectedIndices.current.size * 0.4;
         const totalPoints = Math.floor(basePoints * (1 + multBonus));
         setScore(s => s + totalPoints);
-        if (multBonus > 2.5) triggerShake(6); // Only shake for high streaks
         setMultiplier(1 + multBonus);
       }
     });
@@ -779,9 +973,8 @@ export default function App() {
       setGameState('idle');
       sounds.playError();
       sparkPos.current = { x, y };
-      errorFrameCount.current += 1;
+      errorFrameCount.current = 15; // Trigger laser fault effect
       setPenalties(prev => prev + 1);
-      triggerShake(4); // Minimal penalty shake
       setScore(s => Math.max(0, s - 500)); // Harsher penalty
       setMultiplier(1);
       return;
@@ -851,6 +1044,8 @@ export default function App() {
           startDebugging();
         } else if (levelRef.current <= 1) {
           // Final iteration completed
+          sounds.stopMusic();
+          sounds.playWin();
           gameStateRef.current = 'gameOver';
           setGameState('gameOver');
           if (scoreRef.current > highScore) {
@@ -876,10 +1071,27 @@ export default function App() {
   };
 
   const startGame = () => {
+    if (isInitializing) return;
+    setIsInitializing(true);
     sounds.playClick();
-    gameStateRef.current = 'tutorial';
-    setGameState('tutorial');
-    generateTargets(0, true);
+    
+    // Sequence timing
+    setTimeout(() => {
+      setShowCrash(true);
+      sounds.stopMusic();
+      sounds.playError();
+      setShake(25);
+      
+      setTimeout(() => {
+        setIsInitializing(false);
+        setShowCrash(false);
+        setShake(0);
+        gameStateRef.current = 'tutorial';
+        setGameState('tutorial');
+        generateTargets(0, true);
+        sounds.startGameMusic();
+      }, 700);
+    }, 1800);
   };
 
   const resetGame = () => {
@@ -927,25 +1139,52 @@ export default function App() {
         transform: shake > 0 ? `translate(${(Math.random() - 0.5) * shake}px, ${(Math.random() - 0.5) * shake}px)` : 'none'
       }}
     >
-      {/* Red Warning Vignette */}
+      {/* Crash Overlay */}
+      {showCrash && (
+        <div className="absolute inset-0 z-[100] bg-black overflow-hidden pointer-events-none flex items-center justify-center">
+          {[...Array(30)].map((_, i) => (
+             <div 
+               key={i} 
+               className="absolute bg-[#EA4335] h-[2px] w-full opacity-40 shadow-[0_0_10px_#EA4335]"
+               style={{ top: `${Math.random() * 100}%`, left: `${(Math.random() - 0.5) * 50}%` }}
+             />
+          ))}
+          <div className="absolute inset-0 bg-[#EA4335]/10 animate-pulse" />
+          <motion.div 
+            animate={{ scale: [1, 1.1, 0.9, 1.2, 1], opacity: [1, 0.8, 1] }}
+            transition={{ duration: 0.1, repeat: Infinity }}
+            className="text-[#EA4335] font-black text-6xl tracking-[0.5em] italic drop-shadow-[0_0_30px_#EA4335]"
+          >
+            KERNEL_PANIC
+          </motion.div>
+        </div>
+      )}
+
+      {/* Red Warning Vignette & Scanning Lines */}
       {gameState === 'idle' && gameTime > DIFFICULTIES[difficulty].timeLimit - 15000 && (
-        <motion.div 
-            animate={{ opacity: [0.1, 0.4, 0.1] }}
-            transition={{ duration: 1.5, repeat: Infinity }}
-            className="absolute inset-0 pointer-events-none z-10 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(234,67,53,0.15)_100%)] shadow-[inset_0_0_150px_rgba(234,67,53,0.4)]"
-        />
+        <div className="absolute inset-0 pointer-events-none z-50">
+          <motion.div 
+              animate={{ 
+                opacity: [0.1, 0.4, 0.1],
+                backgroundColor: ['rgba(0,0,0,0)', 'rgba(234,67,53,0.1)', 'rgba(0,0,0,0)']
+              }}
+              transition={{ duration: 0.8, repeat: Infinity }}
+              className="absolute inset-0 shadow-[inset_0_0_200px_rgba(234,67,53,0.6)]"
+          />
+          <motion.div 
+            className="absolute top-0 left-0 right-0 h-[2px] bg-[#EA4335]/30 shadow-[0_0_15px_#EA4335]"
+            animate={{ top: ['0%', '100%'] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
+          />
+          <div className="absolute top-5 right-5 text-[#EA4335] font-black text-[10px] tracking-[0.5em] animate-pulse">
+            [ ALERT: KERNEL_OVERFLOW_IMMINENT ]
+          </div>
+        </div>
       )}
 
       {gameState === 'tutorial' && (
         <div className="absolute top-10 right-10 z-20 flex flex-col items-end animate-in fade-in slide-in-from-right duration-700">
             <div className="flex gap-4">
-                <button 
-                    onClick={goToTitle}
-                    className="group relative px-6 py-3 bg-transparent text-gray-500 font-bold uppercase tracking-widest text-[9px] border border-white/10 transition-all cursor-pointer overflow-hidden hover:border-white/40 hover:text-white"
-                >
-                    <span className="relative z-10">RETURN_TO_TITLE</span>
-                    <div className="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
-                </button>
                 <button 
                     onClick={startDebugging}
                     className="group relative px-8 py-3 bg-white text-black font-bold uppercase tracking-widest text-[11px] border border-white transition-all cursor-pointer overflow-hidden hover:bg-[#4285F4] hover:text-white"
@@ -1071,6 +1310,28 @@ export default function App() {
                     </div>
                 </div>
 
+                {/* Errativeness Slider */}
+                <div className="mb-6">
+                    <div className="flex justify-between items-center mb-3">
+                        <label className="text-[10px] text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                            <Bug className="w-3 h-3" /> Errativeness
+                        </label>
+                        <span className="text-[10px] font-mono text-[#4285F4]">{errativeness}%</span>
+                    </div>
+                    <div className="relative pt-1 px-1">
+                        <input 
+                            type="range" min="1" max="100" value={errativeness} 
+                            onChange={(e) => setErrativeness(parseInt(e.target.value))}
+                            className="w-full h-1 bg-white/5 appearance-none rounded-full accent-[#4285F4] cursor-pointer"
+                        />
+                        <div className="flex justify-between mt-2 text-[6px] text-gray-700 uppercase font-black tracking-tighter">
+                            <span>Predictable</span>
+                            <span>Normal</span>
+                            <span>Chaotic</span>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Style */}
                 <div className="mb-2">
                     <label className="text-[10px] text-gray-400 uppercase tracking-widest block mb-3 flex items-center gap-2">
@@ -1113,6 +1374,19 @@ export default function App() {
         </button>
       </div>
 
+      {/* Return to Title - Global */}
+      {gameState !== 'landing' && (
+        <div className="absolute bottom-10 right-10 z-[80] animate-in fade-in slide-in-from-bottom-5 duration-500">
+            <button 
+                onClick={goToTitle}
+                className="group relative px-6 py-3 bg-transparent text-gray-500 font-bold uppercase tracking-widest text-[9px] border border-white/10 transition-all cursor-pointer overflow-hidden hover:border-white/40 hover:text-white"
+            >
+                <span className="relative z-10">RETURN_TO_TITLE</span>
+                <div className="absolute inset-0 bg-white/5 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+            </button>
+        </div>
+      )}
+
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-4 pointer-events-none z-10 w-full px-10">
         <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent w-full opacity-20" />
       </div>
@@ -1127,6 +1401,26 @@ export default function App() {
 
       {gameState === 'landing' && (
         <div className="absolute inset-0 bg-[#060606] z-[60] flex flex-col items-center justify-center p-10 overflow-hidden">
+            {/* Background Data Nodes */}
+            <div className="absolute inset-0 pointer-events-none opacity-20">
+              {[...Array(15)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute w-1 h-1 bg-[#4285F4] rounded-full"
+                  style={{ left: `${Math.random() * 100}%`, top: `${Math.random() * 100}%` }}
+                  animate={{ 
+                    y: [0, -100, 0],
+                    opacity: [0.1, 0.6, 0.1],
+                    scale: [1, 2, 1]
+                  }}
+                  transition={{ 
+                    duration: 4 + Math.random() * 6, 
+                    repeat: Infinity,
+                    delay: Math.random() * 5
+                  }}
+                />
+              ))}
+            </div>
             {/* Background Grid Accent */}
             <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
                  style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
@@ -1134,20 +1428,51 @@ export default function App() {
             <div className="relative mb-16 animate-in fade-in slide-in-from-bottom-10 duration-1000 flex flex-col items-center">
                 <div className="absolute -inset-20 bg-[#4285F4]/5 blur-[120px] rounded-full animate-pulse" />
                 
-                <div className="flex items-center gap-6 mb-6">
+                <div className="flex items-center gap-6 mb-6 relative">
+                    {/* The Scouting Bugs */}
+                    {[...Array(bugCount)].map((_, i) => (
+                      <ScoutingBug key={i} id={i} />
+                    ))}
+
                     <div className="relative group">
-                        <div className="absolute -inset-4 bg-[#4285F4]/20 blur-xl rounded-full group-hover:bg-[#4285F4]/40 transition-colors duration-700" />
-                        <Bug className="w-16 h-16 text-[#4285F4] relative z-10 animate-bounce transition-transform duration-1000" style={{ animationDuration: '3s' }} />
+                        <div className="absolute -inset-10 bg-[#4285F4]/10 blur-3xl rounded-full group-hover:bg-[#4285F4]/30 transition-colors duration-1000" />
+                        <motion.div
+                          animate={isInitializing ? {
+                            x: [0, 0, 0],
+                            y: [0, 20, 400],
+                            rotate: [0, 180, 180],
+                            scale: [1, 1.5, 0.5],
+                            opacity: [1, 1, 0]
+                          } : {}}
+                          transition={{ duration: 1.8, times: [0, 0.2, 1], ease: "anticipate" }}
+                        >
+                          <Bug className={`w-16 h-16 text-[#4285F4] relative z-10 ${isInitializing ? '' : 'animate-bounce'}`} style={{ animationDuration: '3s' }} />
+                        </motion.div>
                     </div>
-                    <h1 className="text-[8vw] font-black text-white tracking-tighter leading-none select-none drop-shadow-[0_0_50px_rgba(66,133,244,0.4)] flex items-baseline gap-2">
-                        SYNTAX<span className="text-[#4285F4]">SWARM</span>
+                    <h1 className="text-[8vw] font-black text-white tracking-tighter leading-none select-none drop-shadow-[0_0_50px_rgba(66,133,244,0.4)] flex items-baseline gap-2 group">
+                        <span className="relative">
+                            SYNTAX
+                            <motion.div 
+                                className="absolute -right-2 top-0 bottom-0 w-px bg-[#4285F4] shadow-[0_0_10px_#4285F4]"
+                                animate={{ opacity: [0, 1, 0] }}
+                                transition={{ duration: 0.8, repeat: Infinity }}
+                            />
+                        </span>
+                        <span className="text-[#4285F4] relative">
+                            SWARM
+                            <motion.div 
+                                className="absolute inset-0 bg-white/10 h-1/2 -skew-y-3"
+                                animate={{ x: ['-100%', '200%'] }}
+                                transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                            />
+                        </span>
                     </h1>
                 </div>
 
-                <div className="flex items-center gap-6 text-[#4285F4] font-mono text-xs tracking-[0.6em] uppercase opacity-80">
-                    <div className="h-px w-8 bg-[#4285F4]/20" />
+                <div className="flex items-center gap-6 text-[#4285F4] font-mono text-[9px] tracking-[0.8em] uppercase opacity-60">
+                    <div className="h-px w-20 bg-gradient-to-r from-transparent to-[#4285F4]/30" />
                     Cleanse the compiler. Secure the kernel.
-                    <div className="h-px w-8 bg-[#4285F4]/20" />
+                    <div className="h-px w-20 bg-gradient-to-l from-transparent to-[#4285F4]/30" />
                 </div>
             </div>
 
@@ -1157,18 +1482,35 @@ export default function App() {
                     <span className="text-sm text-gray-300 font-medium tracking-[0.1em]">Tanay Pandey</span>
                 </div>
 
-                <button 
-                    onClick={startGame}
-                    className="group relative px-20 py-6 bg-white hover:bg-[#4285F4] text-black hover:text-white transition-all duration-500 font-bold text-base tracking-[0.4em] uppercase overflow-hidden"
-                >
-                    <div className="relative z-10">INITIALIZE_CORE</div>
-                    <div className="absolute inset-x-0 bottom-0 h-1 bg-[#4285F4] group-hover:bg-white transition-colors" />
-                </button>
+                <div className="flex flex-col items-center gap-6">
+                    <button 
+                        onClick={startGame}
+                        disabled={isInitializing}
+                        className={`group relative px-20 py-6 bg-white hover:bg-[#4285F4] text-black hover:text-white transition-all duration-500 font-bold text-base tracking-[0.4em] uppercase overflow-hidden ${isInitializing ? 'opacity-50 cursor-wait bg-[#EA4335]' : ''}`}
+                    >
+                        <div className="relative z-10">{isInitializing ? 'OVERLOADING...' : 'INITIALIZE_CORE'}</div>
+                        {!isInitializing && <div className="absolute inset-x-0 bottom-0 h-1 bg-[#4285F4] group-hover:bg-white transition-colors" />}
+                    </button>
+
+                    <button 
+                      onClick={() => setShowSettings(true)}
+                      className="group flex items-center justify-center gap-3 px-6 py-3 text-gray-600 hover:text-white transition-all duration-300 uppercase tracking-widest text-[9px] font-bold"
+                    >
+                      <Settings className="w-3.5 h-3.5 group-hover:rotate-90 transition-transform duration-500" />
+                      Configure Environment
+                    </button>
+                </div>
             </div>
 
-            <div className="absolute bottom-12 text-[10px] text-gray-700 font-mono tracking-widest uppercase opacity-50">
-                v1.0.4 // secure_bootstrap_confirmed
+            {/* Status Ticker */}
+            <div className="absolute bottom-6 left-10 right-10 flex justify-between items-center opacity-20 font-mono text-[8px] tracking-[0.5em] uppercase pointer-events-none">
+                <div className="flex items-center gap-4">
+                    <div className="w-1 h-1 bg-[#34A853] rounded-full animate-pulse" />
+                    System Status: Operational
+                </div>
+                <div>Root@Kernel: ~ $ Swarm_Detected</div>
             </div>
+
         </div>
       )}
 
@@ -1187,29 +1529,49 @@ export default function App() {
                 className="text-center relative z-10"
             >
                 <div className="text-[#EA4335] text-sm font-bold tracking-[0.5em] mb-8 animate-pulse flex items-center justify-center gap-4">
-                    <motion.div animate={{ opacity: [1, 0, 1] }} transition={{ duration: 0.2, repeat: Infinity }}>
-                        <Bug className="w-5 h-5" />
+                    <motion.div 
+                        animate={{ 
+                            opacity: [1, 0, 1],
+                            rotate: [0, 90, 0]
+                        }} 
+                        transition={{ duration: 0.1, repeat: Infinity }}
+                    >
+                        <Bug className="w-5 h-5 text-red-500" />
                     </motion.div>
                     CRITICAL_KERNEL_OVERRUN
-                    <motion.div animate={{ opacity: [1, 0, 1] }} transition={{ duration: 0.2, repeat: Infinity, delay: 0.1 }}>
-                        <Bug className="w-5 h-5" />
+                    <motion.div 
+                        animate={{ 
+                            opacity: [1, 0, 1],
+                            rotate: [0, -90, 0]
+                        }} 
+                        transition={{ duration: 0.1, repeat: Infinity, delay: 0.05 }}
+                    >
+                        <Bug className="w-5 h-5 text-red-500" />
                     </motion.div>
                 </div>
                 
-                <h1 className="text-8xl font-black text-white mb-6 tracking-tighter drop-shadow-[0_0_50px_rgba(234,67,53,0.5)]">
-                    SYSTEM <span className="text-[#EA4335]">COMPROMISED</span>
+                <h1 className="text-8xl font-black text-white mb-6 tracking-tighter select-none">
+                    SYSTEM <span className="text-[#EA4335] animate-pulse">COMPROMISED</span>
                 </h1>
                 
-                <p className="text-xl text-gray-500 font-medium max-w-2xl mb-16 leading-relaxed mx-auto">
-                    Execution threshold exceeded. Debugging pipeline stalled at <span className="text-white font-black">STEP {level}</span>. <br/>
-                    <motion.span 
-                        animate={{ opacity: [0.3, 0.6, 0.3] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                        className="text-red-900 uppercase text-[10px] tracking-[0.5em] mt-8 block"
+                <div className="relative max-w-2xl mx-auto mb-16 h-40 overflow-hidden bg-red-900/10 border border-red-500/20 p-4 font-mono text-[10px] text-red-500 text-left">
+                    <motion.div
+                        animate={{ y: [0, -200] }}
+                        transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
                     >
-                        [MALWARE_PROPAGATION: 100%] // SECURITY_ASSETS_NULLIFIED
-                    </motion.span>
-                </p>
+                        {[...Array(40)].map((_, i) => (
+                            <div key={i} className="flex gap-4 opacity-40">
+                                <span> {Math.random().toString(16).slice(2, 10).toUpperCase()} </span>
+                                <span> ERR_CODE_{Math.floor(Math.random()*9999)} </span>
+                                <span> MEMORY_LEAK_DETECTION </span>
+                            </div>
+                        ))}
+                    </motion.div>
+                    <div className="absolute inset-0 bg-gradient-to-b from-[#060606] via-transparent to-[#060606]" />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                         <span className="text-xl font-black bg-black/80 px-4 py-2 border border-red-500 shadow-[0_0_20px_#EA4335]">HALT AT STEP {level}</span>
+                    </div>
+                </div>
                 
                 <div className="flex gap-4 justify-center">
                     <button 
@@ -1250,39 +1612,138 @@ export default function App() {
       )}
 
       {gameState === 'gameOver' && (
-        <div className="absolute inset-0 bg-[#0c0c0c]/98 flex items-center justify-center flex-col z-30 backdrop-blur-2xl animate-in fade-in duration-1000">
-            <div className="relative mb-12">
-                <h1 className="text-[12rem] font-black text-white tracking-tighter leading-none select-none opacity-5 absolute -top-24 left-1/2 -translate-x-1/2">SUCCESS</h1>
-                <h1 className="text-8xl font-black text-white tracking-tighter drop-shadow-[0_0_40px_rgba(255,255,255,0.3)]">KERNEL COMPILED</h1>
-            </div>
-            
-            <p className="text-[#34A853] tracking-[1.5em] mb-20 uppercase text-[11px] font-bold flex items-center gap-4">
-                <span className="w-2 h-2 bg-[#34A853] rounded-full animate-ping" />
-                Stability integrity verified across all sectors
-            </p>
-            
-            <div className="flex gap-20 mb-24 max-w-7xl w-full justify-center">
-                <div className="text-center group border-b-2 border-white/5 pb-8 px-10 hover:border-[#4285F4] transition-colors">
-                    <div className="text-gray-600 text-[10px] uppercase tracking-[0.4em] mb-4 group-hover:text-[#4285F4] transition-colors">Calculated Stability</div>
-                    <div className="text-6xl text-white font-black tracking-tighter">{score.toLocaleString()}</div>
-                </div>
-                <div className="text-center group border-b-2 border-white/5 pb-8 px-10 hover:border-[#34A853] transition-colors">
-                    <div className="text-gray-600 text-[10px] uppercase tracking-[0.4em] mb-4 group-hover:text-[#34A853] transition-colors">Execution Time</div>
-                    <div className="text-6xl text-white font-black tracking-tighter">{formatTime(gameTime)}</div>
-                </div>
-                <div className="text-center group border-b-2 border-white/5 pb-8 px-10 hover:border-[#FBBC05] transition-colors">
-                    <div className="text-gray-600 text-[10px] uppercase tracking-[0.4em] mb-4 group-hover:text-[#FBBC05] transition-colors">Historical Build</div>
-                    <div className="text-6xl text-[#FBBC05] font-black tracking-tighter">{highScore.toLocaleString()}</div>
-                </div>
+        <div className="absolute inset-0 bg-[#0c0c0c]/98 flex items-center justify-center flex-col z-30 backdrop-blur-2xl animate-in fade-in duration-1000 overflow-hidden py-10">
+            {/* Background Binary Stream */}
+            <div className="absolute inset-0 pointer-events-none opacity-5 font-mono text-[10px] grid grid-cols-12 gap-2 p-4 select-none overflow-hidden">
+               {[...Array(24)].map((_, col) => (
+                  <motion.div 
+                    key={col} 
+                    className="flex flex-col gap-1 text-[#4285F4]"
+                    animate={{ y: [0, -500] }}
+                    transition={{ duration: 5 + Math.random() * 5, repeat: Infinity, ease: "linear" }}
+                  >
+                    {[...Array(100)].map((_, i) => (
+                      <span key={i}>{Math.round(Math.random())}</span>
+                    ))}
+                  </motion.div>
+               ))}
             </div>
 
-            <button 
-                onClick={resetGame}
-                className="group relative px-20 py-8 bg-white text-black font-black uppercase tracking-[0.3em] hover:bg-[#4285F4] hover:text-white transition-all duration-500 cursor-pointer overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
-            >
-                <span className="relative z-10 text-xl">PLAY AGAIN</span>
-                <div className="absolute inset-0 bg-black translate-y-full group-hover:translate-y-0 transition-transform duration-500 ease-out" />
-            </button>
+            {/* Success Background Particles */}
+            <div className="absolute inset-0 pointer-events-none opacity-30">
+                {[...Array(40)].map((_, i) => (
+                    <motion.div
+                        key={i}
+                        className="absolute bg-[#4285F4] w-1 h-1 rounded-full shadow-[0_0_10px_#4285F4]"
+                        style={{ 
+                            left: `${Math.random() * 100}%`, 
+                            top: `${Math.random() * 100}%` 
+                        }}
+                        animate={{ 
+                            scale: [0, 2, 0],
+                            opacity: [0, 0.8, 0],
+                            y: [0, -200],
+                            x: [0, (Math.random() - 0.5) * 50]
+                        }}
+                        transition={{ 
+                            duration: 2 + Math.random() * 3, 
+                            repeat: Infinity,
+                            delay: Math.random() * 2
+                        }}
+                    />
+                ))}
+            </div>
+
+            {/* Radar Scan Overlay */}
+            <motion.div 
+              className="absolute inset-0 pointer-events-none z-10 opacity-20"
+              style={{
+                background: 'conic-gradient(from 0deg, transparent 0deg, #4285F4 20deg, transparent 40deg)',
+                maskImage: 'radial-gradient(circle, black, transparent 70%)',
+                WebkitMaskImage: 'radial-gradient(circle, black, transparent 70%)'
+              }}
+              animate={{ rotate: 360 }}
+              transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+            />
+
+            {/* Scanning Line */}
+            <motion.div 
+              className="absolute inset-0 bg-gradient-to-b from-transparent via-[#4285F4]/5 to-transparent h-40 w-full pointer-events-none z-20"
+              animate={{ top: ['-20%', '120%'] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+            />
+
+            <div className="relative z-20 flex flex-col items-center w-full max-w-5xl px-10 scale-90 md:scale-100">
+                <div className="relative mb-12 sm:mb-16">
+                    <motion.h1 
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 0.05 }}
+                      transition={{ duration: 1.5, ease: "easeOut" }}
+                      className="text-[10rem] md:text-[14rem] font-black text-white tracking-tighter leading-none select-none absolute -top-12 md:-top-16 left-1/2 -translate-x-1/2 whitespace-nowrap"
+                    >
+                      SUCCESS
+                    </motion.h1>
+                    <motion.h1 
+                      initial={{ y: 40, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ delay: 0.3, duration: 0.8, type: "spring" }}
+                      className="text-6xl md:text-9xl font-black text-white tracking-tighter drop-shadow-[0_0_60px_rgba(66,133,244,0.6)] relative z-10 text-center"
+                    >
+                        KERNEL <span className="text-[#4285F4] animate-pulse">COMPILED</span>
+                    </motion.h1>
+                </div>
+                
+                <motion.div 
+                   initial={{ scaleX: 0 }}
+                   animate={{ scaleX: 1 }}
+                   transition={{ delay: 1, duration: 1 }}
+                   className="text-[#34A853] tracking-[0.8em] sm:tracking-[1.5em] mb-12 sm:mb-20 uppercase text-[9px] sm:text-[11px] font-bold flex items-center gap-4 border-y border-[#34A853]/20 py-4 px-10 sm:px-20 bg-[#34A853]/5"
+                >
+                    <span className="w-2 h-2 bg-[#34A853] rounded-full animate-ping" />
+                    Stability integrity verified across all sectors
+                </motion.div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-12 mb-16 sm:mb-24 w-full">
+                    <motion.div 
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: 1.3 }}
+                      className="text-center group border-l-2 border-white/10 pl-6 sm:pl-10 hover:border-[#4285F4] transition-all duration-500 bg-white/[0.03] p-4 sm:p-6 rounded-r-xl"
+                    >
+                        <div className="text-gray-600 text-[10px] uppercase tracking-[0.3em] mb-2 sm:mb-4 group-hover:text-[#4285F4] transition-colors font-mono">Calculated Stability</div>
+                        <div className="text-5xl md:text-7xl text-white font-black tracking-tighter">{score.toLocaleString()}</div>
+                    </motion.div>
+                    <motion.div 
+                      initial={{ y: 20, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      transition={{ delay: 1.5 }}
+                      className="text-center group border-l-2 border-white/10 pl-6 sm:pl-10 hover:border-[#34A853] transition-all duration-500 bg-white/[0.03] p-4 sm:p-6 rounded-r-xl"
+                    >
+                        <div className="text-gray-600 text-[10px] uppercase tracking-[0.3em] mb-2 sm:mb-4 group-hover:text-[#34A853] transition-colors font-mono">Execution Time</div>
+                        <div className="text-5xl md:text-7xl text-white font-black tracking-tighter">{formatTime(gameTime)}</div>
+                    </motion.div>
+                    <motion.div 
+                      initial={{ x: 20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: 1.7 }}
+                      className="text-center group border-l-2 border-white/10 pl-6 sm:pl-10 hover:border-[#FBBC05] transition-all duration-500 bg-white/[0.03] p-4 sm:p-6 rounded-r-xl"
+                    >
+                        <div className="text-gray-600 text-[10px] uppercase tracking-[0.3em] mb-2 sm:mb-4 group-hover:text-[#FBBC05] transition-colors font-mono">Historical Build</div>
+                        <div className="text-5xl md:text-7xl text-[#FBBC05] font-black tracking-tighter">{highScore.toLocaleString()}</div>
+                    </motion.div>
+                </div>
+
+                <motion.button 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 2, duration: 0.5 }}
+                    onClick={resetGame}
+                    className="group relative px-16 sm:px-24 py-8 sm:py-10 bg-white text-black font-black uppercase tracking-[0.4em] hover:bg-[#4285F4] hover:text-white transition-all duration-700 cursor-pointer overflow-hidden shadow-[0_20px_80px_rgba(66,133,244,0.3)] hover:scale-105 active:scale-95"
+                >
+                    <span className="relative z-10 text-lg sm:text-2xl">RE-INITIALIZE KERNEL</span>
+                    <div className="absolute inset-0 bg-[#4285F4] translate-y-full group-hover:translate-y-0 transition-transform duration-500 cubic-bezier(0.19, 1, 0.22, 1)" />
+                </motion.button>
+            </div>
         </div>
       )}
     </div>

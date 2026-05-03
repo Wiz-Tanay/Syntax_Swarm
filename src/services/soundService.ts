@@ -9,13 +9,16 @@ class SoundEngine {
   private swarmOsc1: OscillatorNode | null = null;
   private swarmOsc2: OscillatorNode | null = null;
   private swarmGain: GainNode | null = null;
+  private musicNodes: { osc: OscillatorNode; gain: GainNode }[] = [];
+  private musicInterval: any = null;
+  private currentPitchFactor: number = 1.0;
 
   private init() {
     if (this.ctx) return;
     this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     this.masterVolume = this.ctx.createGain();
     this.masterVolume.connect(this.ctx.destination);
-    this.masterVolume.gain.value = 0.3; // Global volume
+    this.masterVolume.gain.value = 0.4; // Global volume
   }
 
   setVolume(value: number) {
@@ -25,15 +28,75 @@ class SoundEngine {
     }
   }
 
-  private createOscillator(freq: number, type: OscillatorType = 'sine'): { osc: OscillatorNode; gain: GainNode } {
+  private createOscillator(freq: number, type: OscillatorType = 'sine', dest: AudioNode | null = null): { osc: OscillatorNode; gain: GainNode } {
     this.init();
     const osc = this.ctx!.createOscillator();
     const gain = this.ctx!.createGain();
     osc.type = type;
     osc.frequency.setValueAtTime(freq, this.ctx!.currentTime);
     osc.connect(gain);
-    gain.connect(this.masterVolume!);
+    gain.connect(dest || this.masterVolume!);
     return { osc, gain };
+  }
+
+  stopMusic() {
+    if (this.musicInterval) clearInterval(this.musicInterval);
+    this.musicNodes = [];
+    this.musicInterval = null;
+  }
+
+  setMusicPitch(factor: number) {
+    this.currentPitchFactor = factor;
+  }
+
+  startTitleMusic() {
+    this.stopMusic();
+    this.init();
+    let step = 0;
+    const sequence = [110, 110, 164, 110, 220, 110, 164, 110];
+    this.musicInterval = setInterval(() => {
+      if (!this.ctx) return;
+      const freq = sequence[step % sequence.length];
+      const { osc, gain } = this.createOscillator(freq * this.currentPitchFactor, 'triangle');
+      gain.gain.setValueAtTime(0, this.ctx!.currentTime);
+      gain.gain.linearRampToValueAtTime(0.05, this.ctx!.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx!.currentTime + 0.4);
+      osc.start();
+      osc.stop(this.ctx!.currentTime + 0.5);
+      step++;
+    }, 400);
+  }
+
+  startGameMusic() {
+    this.stopMusic();
+    this.init();
+    let step = 0;
+    const sequence = [55, 55, 110, 55, 82, 55, 110, 147];
+    this.musicInterval = setInterval(() => {
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const freq = sequence[step % sequence.length];
+      const { osc, gain } = this.createOscillator(freq * this.currentPitchFactor, 'square');
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(400 * this.currentPitchFactor, now);
+      osc.disconnect();
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.12, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+      osc.start();
+      osc.stop(now + 0.25);
+      if (step % 2 === 1) {
+        const { osc: click, gain: cGain } = this.createOscillator(2000 * this.currentPitchFactor, 'sine');
+        cGain.gain.setValueAtTime(0.03, now);
+        cGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        click.start();
+        click.stop(now + 0.05);
+      }
+      step++;
+    }, 200);
   }
 
   // --- Swarm Ambience ---
@@ -119,18 +182,57 @@ class SoundEngine {
     // Impact
     const { osc: o1, gain: g1 } = this.createOscillator(120, 'sine');
     o1.frequency.exponentialRampToValueAtTime(40, now + 0.2);
-    g1.gain.setValueAtTime(0.5, now);
-    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    g1.gain.setValueAtTime(0.8, now);
+    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
     
     // Tech click
-    const { osc: o2, gain: g2 } = this.createOscillator(3000, 'sine');
-    g2.gain.setValueAtTime(0.2, now);
-    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    const { osc: o2, gain: g2 } = this.createOscillator(2200, 'square');
+    g2.gain.setValueAtTime(0.3, now);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+    // Filtered noise pop
+    const bufferSize = this.ctx!.sampleRate * 0.1;
+    const buffer = this.ctx!.createBuffer(1, bufferSize, this.ctx!.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+    const noise = this.ctx!.createBufferSource();
+    noise.buffer = buffer;
+    const nGain = this.ctx!.createGain();
+    nGain.gain.setValueAtTime(0.15, now);
+    nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+    noise.connect(nGain);
+    nGain.connect(this.masterVolume!);
 
     o1.start(now);
-    o1.stop(now + 0.3);
+    o1.stop(now + 0.4);
     o2.start(now);
-    o2.stop(now + 0.05);
+    o2.stop(now + 0.08);
+    noise.start(now);
+    noise.stop(now + 0.05);
+  }
+
+  /** Victory: A triumphant ascending sequence */
+  playWin() {
+    this.init();
+    const now = this.ctx!.currentTime;
+    const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99]; // C Major arpeggio
+    
+    notes.forEach((freq, i) => {
+      const { osc, gain } = this.createOscillator(freq, 'triangle');
+      gain.gain.setValueAtTime(0, now + i * 0.1);
+      gain.gain.linearRampToValueAtTime(0.1, now + i * 0.1 + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.3);
+      osc.start(now + i * 0.1);
+      osc.stop(now + i * 0.1 + 0.4);
+    });
+
+    // Sub hit
+    const { osc: low, gain: lGain } = this.createOscillator(60, 'sine');
+    lGain.gain.setValueAtTime(0, now);
+    lGain.gain.linearRampToValueAtTime(0.4, now + 0.1);
+    lGain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+    low.start(now);
+    low.stop(now + 2);
   }
 
   /** Penalty hit: A buzzy error sound */
@@ -167,22 +269,22 @@ class SoundEngine {
     const now = this.ctx!.currentTime;
 
     // 1. Sub Bass Impact
-    const { osc: lowOsc, gain: lowGain } = this.createOscillator(60, 'sine');
-    lowOsc.frequency.exponentialRampToValueAtTime(30, now + 0.6);
-    lowGain.gain.setValueAtTime(1.0, now);
-    lowGain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+    const { osc: lowOsc, gain: lowGain } = this.createOscillator(65, 'sine');
+    lowOsc.frequency.exponentialRampToValueAtTime(20, now + 0.6);
+    lowGain.gain.setValueAtTime(1.2, now);
+    lowGain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
     lowOsc.start(now);
-    lowOsc.stop(now + 0.8);
+    lowOsc.stop(now + 0.9);
 
     // 2. Mid Thump
-    const { osc: midOsc, gain: midGain } = this.createOscillator(150, 'sawtooth');
-    midGain.gain.setValueAtTime(0.4, now);
-    midGain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    const { osc: midOsc, gain: midGain } = this.createOscillator(160, 'sawtooth');
+    midGain.gain.setValueAtTime(0.6, now);
+    midGain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
     midOsc.start(now);
-    midOsc.stop(now + 0.4);
+    midOsc.stop(now + 0.5);
 
     // 3. High Shatter/Noise
-    const bufferSize = this.ctx!.sampleRate * 0.8;
+    const bufferSize = this.ctx!.sampleRate * 1.0;
     const buffer = this.ctx!.createBuffer(1, bufferSize, this.ctx!.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
@@ -192,12 +294,12 @@ class SoundEngine {
     
     const filter = this.ctx!.createBiquadFilter();
     filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(2000, now);
-    filter.frequency.exponentialRampToValueAtTime(100, now + 0.7);
+    filter.frequency.setValueAtTime(3000, now);
+    filter.frequency.exponentialRampToValueAtTime(50, now + 0.8);
 
     const gain = this.ctx!.createGain();
-    gain.gain.setValueAtTime(0.5, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+    gain.gain.setValueAtTime(0.8, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
 
     noise.connect(filter);
     filter.connect(gain);
