@@ -1,20 +1,48 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# <SYSTEM_FAILURE /> - The Glitch Purge
 
-# Run and deploy your AI Studio app
+An intense, technical-glitch themed arcade game built for high-stakes performance testing. Navigate through system instability, purge corrupted data packets, and reach the final compilation before the system critical timeout.
 
-This contains everything you need to run your app locally.
+## 🕹️ The Game
+You are the system administrator facing a cascading kernel failure. Your mission is to stabilize the environment by purging anomalies across multiple levels of increasing complexity.
 
-View your app in AI Studio: https://ai.studio/apps/5bc980b0-7b06-4a31-81a4-82151a894162
+### Features
+- **Technical Aesthetic**: A high-contrast, "brutalist" cyberpunk UI with glitch effects, CRT scanlines, and animated data streams.
+- **Dynamic Audio System**: Procedural electronic music and sound effects that react to game states (Success, Danger, and Title themes).
+- **Hardened UI**: A "System Danger" and "Compilation Success" screen system with detailed performance metrics.
+- **Responsive Controls**: Fully optimized for both desktop keyboard/mouse and mobile touch interactions.
+- **Environment Configuration**: fine-tune the system parameters from the in-game settings menu.
 
-## Run Locally
+## 🚀 Getting Started
 
-**Prerequisites:**  Node.js
+### Prerequisites
+- [Node.js](https://nodejs.org/) (Version 18 or higher)
+- npm or yarn
 
+### Installation
+1. Clone the repository:
+   ```bash
+   git clone <your-repo-url>
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## 🛠️ Tech Stack
+- **Framework**: [React 18](https://reactjs.org/) with [Vite](https://vitejs.dev/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Animations**: [Framer Motion](https://www.framer.com/motion/) (`motion/react`)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **Audio**: Web Audio API (Procedural Synthesis)
+
+## 🎨 Design Philosophy
+The project follows a **"Code-as-UI"** philosophy. Every element is designed to feel like a living terminal or a debugger interface, using mono fonts (Inter, Space Grotesk) and sharp, geometric layouts.
+
+---
+
+**STATUS**: COMPILATION SUCCESSFUL 🟢
+**THREAT LEVEL**: NOMINAL
